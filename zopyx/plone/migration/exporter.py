@@ -8,6 +8,7 @@
 import os
 import shutil
 import tempfile
+import cPickle
 
 handlers = dict()  # portal_type -> handler
 
@@ -35,8 +36,6 @@ def export_members(options):
         passwords = None
 
     for username in acl_users.getUserNames():
-        print username
-
         user = acl_users.getUserById(username)
         member = pm.getMemberById(username)
         if member is None:
@@ -55,6 +54,7 @@ def export_members(options):
         print >>fp, 'email = %s' % member.getProperty('email')
         print >>fp
     fp.close()
+    log('exported %d users' % len(acl_users.getUserNames()))
 
 class BaseHandler(object):
 
@@ -333,6 +333,35 @@ registerHandler(JobAngebotHandler)
 def log(s):
     print >>sys.stdout, s
 
+def export_content(options):
+
+    catalog = options.plone.portal_catalog
+    export_dir = os.path.join(options.export_directory, 'content')
+    os.mkdir(export_dir)
+    for brain in catalog():
+        obj = brain.getObject()
+        try:
+            schema = obj.Schema()
+        except AttributeError:
+            continue
+
+        print brain.getPath()
+        obj_data = dict(schemadata=dict(), metadata=dict())
+        for field in schema.fields():
+            name = field.getName()
+            value = field.get(obj)
+            if name in ('image', 'file'):
+                value = str(value)
+            elif name == 'relatedItems':
+                value = [obj.UID() for obj in value]
+            obj_data['schemadata'][name] = value
+
+        obj_data['metadata']['uid'] = obj.UID()
+        pickle_name = os.path.join(export_dir, obj.UID())
+        try:
+            cPickle.dump(obj_data, file(pickle_name, 'wb'))
+        except:
+            import pdb; pdb.set_trace() 
 
 def migrate_site(app, options):
 
@@ -358,7 +387,9 @@ def migrate_site(app, options):
 
     options.export_directory = export_dir
     options.plone = plone
+
     export_members(options)
+    export_content(options)
 
 
 
