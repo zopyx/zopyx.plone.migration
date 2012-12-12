@@ -19,34 +19,24 @@ def registerHandler(handler):
         handlers[pt] = handler
 
 
-def export_members(plone, export_dir, verbose):
+def export_members(options):
 
-    print 'Exporting Members'
-    fp = file(os.path.join(export_dir, 'members.ini'), 'w')
+    log('Exporting Members')
+    fp = file(os.path.join(options.export_directory, 'members.ini'), 'w')
 
-    acl_users = plone.acl_users
-    pm = plone.portal_membership
+    acl_users = options.plone.acl_users
+    pm = options.plone.portal_membership
 
     try:
         # Plone 2.5
-        passwords = plone.acl_users.source_users._user_passwords
+        passwords = options.plone.acl_users.source_users._user_passwords
     except:
         # Plone 2.1
         passwords = None
 
-    members = plone.portal_membership.getMembersFolder()
     for username in acl_users.getUserNames():
+        print username
 
-        if not username in members.objectIds():
-            continue
-
-        # we are only interested in members with Anbieter items
-        anbieter_objs = members[username].objectIds('Anbieter')
-        if len(anbieter_objs) == 0:
-            continue
-
-        if verbose:
-            print '-> %s' % username
         user = acl_users.getUserById(username)
         member = pm.getMemberById(username)
         if member is None:
@@ -65,7 +55,6 @@ def export_members(plone, export_dir, verbose):
         print >>fp, 'email = %s' % member.getProperty('email')
         print >>fp
     fp.close()
-
 
 class BaseHandler(object):
 
@@ -341,6 +330,37 @@ class JobAngebotHandler(BaseHandler):
 
 registerHandler(JobAngebotHandler)
 
+def log(s):
+    print >>sys.stdout, s
+
+
+def migrate_site(app, options):
+
+    plone = app.restrictedTraverse(options.path, None)
+    if plone is None:
+        raise RuntimeError('Plone site not found (%s)' % options.path)
+
+    site_id = plone.getId()
+    export_dir = os.path.join(options.output, site_id)
+    if os.path.exists(export_dir):
+        shutil.rmtree(export_dir, ignore_errors=True)
+    os.makedirs(export_dir)
+
+    log('Exporting Plone site: %s' % options.path)
+    log('Export directory:  %s' % os.path.abspath(export_dir))
+
+    app = Zope.app()
+    uf = app.acl_users
+    user = uf.getUser(options.username)
+    if user is None:
+        raise ValueError('Unknown user: %s' % options.username)
+    newSecurityManager(None, user.__of__(uf))
+
+    options.export_directory = export_dir
+    options.plone = plone
+    export_members(options)
+
+
 
 if __name__ == '__main__':
 
@@ -350,34 +370,11 @@ if __name__ == '__main__':
 
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
+    parser.add_option('-p', '--path', dest='path', default='')
+    parser.add_option('-o', '--output', dest='output', default='')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true',
                       default=False)
 
     options, args = parser.parse_args()
-
-    for path in args:
-
-        plone = app.restrictedTraverse(path)
-        group = ''           
-        export_dir = 'export-%s' % plone.getId()
-        if os.path.exists(export_dir):
-            shutil.rmtree(export_dir, ignore_errors=True)
-        os.makedirs(export_dir)
-
-        print '-'*80    
-        print 'Exporting Plone site: %s' % path
-        print 'Export directory:  %s' % os.path.abspath(export_dir)
-        print '-'*80    
-
-        app = Zope.app()
-        uf = app.acl_users
-        user = uf.getUser(options.username)
-        if user is None:
-            raise ValueError('Unknown user: %s' % options.username)
-        newSecurityManager(None, user.__of__(uf))
-
-        export_members(plone, export_dir, options.verbose)
-        for portal_type in handlers:
-            handler = handlers[portal_type]
-            exporter = handler(plone, export_dir, options.verbose)
-            exporter.export(portal_type)
+    options.app = app
+    migrate_site(app, options)
