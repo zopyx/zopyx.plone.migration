@@ -6,19 +6,29 @@
 ################################################################
 
 import os
+import gc
 import shutil
 import tempfile
 import cPickle
 
-handlers = dict()  # portal_type -> handler
+IGNORED_TYPES = (
+    'NewsletterTheme',
+)
 
-def registerHandler(handler):
-    portal_types = handler.portal_types
-    if isinstance(portal_types, str):
-        portal_types = [portal_types]
-    for pt in portal_types:
-        handlers[pt] = handler
+def export_groups(options):
 
+    log('Exporting groups')
+    fp = file(os.path.join(options.export_directory, 'groups.ini'), 'w')
+
+    acl_users = options.plone.acl_users
+    for i, group in enumerate(acl_users.source_groups.getGroups()):
+        print >>fp, '[%d]' % i
+        print >>fp, 'name = %s' % group.getId()
+        print >>fp, 'members = %s' % ','.join(group.getMemberIds())
+        print >>fp, 'roles = %s' % ','.join(group.getRoles())
+
+    fp.close()
+    log('exported %d groups' % len(acl_users.source_groups.getGroups()))
 
 def export_members(options):
 
@@ -40,6 +50,7 @@ def export_members(options):
         member = pm.getMemberById(username)
         if member is None:
             continue
+        roles = [r for r in member.getRoles() if not r in ('Member', 'Authenticated')]
         print >>fp, '[member-%s]' % username
         print >>fp, 'username = %s' % username
         if passwords:
@@ -52,283 +63,10 @@ def export_members(options):
 
         print >>fp, 'fullname = %s' % member.getProperty('fullname')
         print >>fp, 'email = %s' % member.getProperty('email')
+        print >>fp, 'roles = %s' % ','.join(roles) 
         print >>fp
     fp.close()
     log('exported %d users' % len(acl_users.getUserNames()))
-
-class BaseHandler(object):
-
-    portal_types = ()
-    ident = None
-    initialized = False
-
-    def __init__(self, plone, export_dir='exports', verbose=False):
-        self.plone = plone
-        self.portal_id = plone.getId()
-        self.portal_path = plone.absolute_url(1)
-        self.export_dir = export_dir
-        self.verbose = verbose
-        fname = os.path.join(export_dir, self.ident + '.ini')
-        if not self.initialized:        
-            if not os.path.exists(os.path.dirname(fname)):
-                os.makedirs(os.path.dirname(fname))
-            self.fp = file(fname, 'a')
-            self.initialized = True        
-
-    def __del__(self):
-        self.fp.close()
-
-    def _get_objects(self, portal_type):
-        for brain in plone.portal_catalog(portal_type=portal_type):
-            obj = self.plone.unrestrictedTraverse(brain.getPath())
-            obj_path = brain.getPath()
-            folder_path = obj_path.replace(self.portal_path, '')[1:]
-            yield obj, obj_path, folder_path
-
-    def write_common(self, obj, folder_path):
-
-        def fix_oneline(s):
-            s = s.replace('\r\n', ' ')
-            s = s.replace('\n', ' ')
-            return s
-
-        from Products.CMFCore.WorkflowCore import WorkflowException
-
-        wf_tool = obj.portal_workflow
-        try:
-            review_state = wf_tool.getInfoFor(obj, 'review_state')
-        except WorkflowException:
-
-            review_state = ''
-
-        description = obj.Description()
-
-        print >>self.fp, '[%s-%s]' % (self.ident, obj.absolute_url(1))
-        print >>self.fp, 'path = %s' % folder_path.lstrip('/')
-        print >>self.fp, 'id = %s' % obj.getId()
-        print >>self.fp, 'title = %s' % fix_oneline(obj.Title())
-        print >>self.fp, 'Description = %s' % fix_oneline(description)
-        print >>self.fp, 'owner = %s' % obj.getOwner().getUserName()
-        print >>self.fp, 'review-state = %s' % review_state
-        print >>self.fp, 'created = %f' % obj.created().timeTime()
-        print >>self.fp, 'effective = %f' % obj.effective().timeTime()
-        print >>self.fp, 'expires = %f' % obj.expires().timeTime()
-        print >>self.fp, 'subjects = %s' % ','.join(obj.Subject())
-
-        text_format = None
-        if hasattr(obj, 'text_format'):
-            text_format = obj.text_format
-            self.write('text-format', text_format)
-
-        # content-type:
-        ct = None
-        try:
-            ct = obj.getContentType()
-        except AttributeError:
-            ct = obj.content_type()
-        if ct is not None: 
-            if text_format in ('html', 'structured-text'):
-                ct = 'text/html'
-            self.write('content-type', ct)
-
-
-        # raw data
-        schema = obj.Schema()
-        for field in schema.fields():
-            field_class = field.__class__.__name__
-            if 'ImageField' in field_class or 'FileField' in field_class:
-                continue
-            accessor = field.accessor
-            try:
-                value = getattr(obj, accessor)()
-            except:
-                continue
-#            print >>self.fp, 'raw_%s = %s' % (field.getName(), value)
-
-
-    def write_leadout(self):
-        print >>self.fp
-
-    def write_binary(self, data, suffix='', key='filename'):
-            dirpath = os.path.join(self.export_dir, self.ident)
-            if not os.path.exists(dirpath):
-                os.makedirs(dirpath)
-            tempf = tempfile.mktemp(dir=dirpath) + suffix
-            open(tempf, 'wb').write(str(data))
-            self.write(key, os.path.abspath(tempf))
-
-
-    def write(self, key, value):
-        print >>self.fp, '%s = %s' % (key, value)
-
-    def export(self, portal_type):
-
-        print 'Exporting %s' % portal_type
-
-        for obj, obj_path, folder_path in self._get_objects(portal_type):
-            if self.verbose:
-                print '-> %s' % obj_path
-
-            if getattr(self, 'folderish', False):
-                self.write_common(obj, '/'.join(folder_path.split('/')[:-1]))
-            else:
-                self.write_common(obj, folder_path)
-            if hasattr(self, 'export2'):
-                self.export2(obj)
-            self.write_leadout()
-
-class DocumentHandler(BaseHandler):
-
-    portal_types = ('Document',)
-    ident = 'documents'
-
-    def export2(self, obj):
-        try:
-            data = obj.getText()
-        except:
-            try:
-                data = obj.text
-            except:
-                data = obj.getRawText()
-
-        self.write_binary(data)
-
-registerHandler(DocumentHandler)
-
-class FolderHandler(BaseHandler):
-    portal_types = ('ATFolder', 'Folder', 'Photo Album')
-    ident = 'folder'
-    folderish = True
-
-registerHandler(FolderHandler)
-
-
-class NewsHandler(BaseHandler):
-    portal_types = ('ATNewsItem', 'NewsItem', 'News Item')
-    ident = 'newsitem'
-
-    def export2(self, obj):
-        try:
-            self.write_binary(obj.getText())
-        except:
-            self.write_binary(obj.getRawText())
-
-registerHandler(NewsHandler)
-
-
-class LinkHandler(BaseHandler):
-    portal_types = ('Link', 'ATLink')
-    ident = 'link'
-
-    def export2(self, obj):
-        self.write('url ', obj.getRemoteUrl())
-
-registerHandler(LinkHandler)
-
-
-class ImageHandler(BaseHandler):
-    portal_types = ('Image', 'ATImage','Photo')
-    ident = 'image'
-
-    def export2(self, obj):
-        self.write_binary(str(obj.data))
-
-registerHandler(ImageHandler)
-
-class ZWikiPageHandler(BaseHandler):
-    portal_types = ('Wiki Page',)
-    ident = 'zwikipage'
-
-    def export2(self, obj):
-        pickledata = obj.manage_exportObject(download=True)
-        self.write_binary(pickledata, 'zexp')
-
-registerHandler(ZWikiPageHandler)
-
-class CMFBibliographyHandler(BaseHandler):
-    portal_types = 'BibliographyFolder'
-    ident = 'cmbibliography'
-
-    def export2(self, obj):
-        pickledata = obj.manage_exportObject(download=True)
-        self.write_binary(pickledata, 'zexp')
-
-registerHandler(CMFBibliographyHandler)
-
-
-class FileHandler(ImageHandler):
-    portal_types = ('File', 'ATFile')
-    ident = 'files'
-
-registerHandler(FileHandler)
-
-class AnbieterHandler(BaseHandler):
-    portal_types = ('Anbieter', )
-    ident = 'anbieter'
-
-    def export2(self, obj):
-        schema = obj.Schema()
-
-        self.write('path', 'anbieter/%s' % obj.getId())
-
-        logo = obj.getLogo()
-        if logo:
-            self.write_binary(str(logo.data), key='filename-logo')
-        for name in ('firmenname',
-                    'ansprechpartner_anrede',
-                    'ansprechpartner_vorname',
-                    'ansprechpartner_nachname',
-                    'ansprechpartner',
-                    'strasse',
-                    'plz',
-                    'ort',
-                    'plz_bereich',
-                    'country',
-                    'telefon',
-                    'fax',
-                    'email',
-                    'leistungsbeschreibung',
-                    'url_homepage',
-                    'course_provider',
-                    'courses_url',
-                    'dzug_vereins_mitglied',):
-
-            field = schema[name]
-            accessor = field.accessor
-            print accessor, field
-            value = getattr(obj, accessor)()
-            self.write(name, str(value))
-
-
-registerHandler(AnbieterHandler)
-
-class JobGesuchHandler(BaseHandler):
-    portal_types = ('JobGesuch',)
-    ident = 'jobgesuch'
-
-    def export2(self, obj):
-        try:
-            self.write_binary(obj.getBeschreibung(), key='filename-beschreibung')
-            self.write_binary(obj.getKontakt(), key='filename-kontakt')
-        except:
-            pass
-
-registerHandler(JobGesuchHandler)
-
-class JobAngebotHandler(BaseHandler):
-    portal_types = ('JobAngebot',)
-    ident = 'jobangebot'
-
-    def export2(self, obj):
-        try:
-            self.write_binary(obj.getBeschreibung(), key='filename-beschreibung')
-            self.write_binary(obj.getKontakt(), key='filename-kontakt')
-            self.write('ort', obj.getOrt())
-            self.write('befristet', obj.getBefristet())
-        except:
-            pass
-
-registerHandler(JobAngebotHandler)
 
 def log(s):
     print >>sys.stdout, s
@@ -358,6 +96,20 @@ def _getContentType(obj):
             ct = 'text/html'
     return ct
 
+def _getParents(obj):
+    result = list()
+    current = obj
+    while current.portal_type != 'Plone Site':
+        result.append(dict(id=current.getId(), portal_type=current.portal_type))
+        current = current.aq_inner.aq_parent
+    return list(reversed(result))
+
+
+def _getRelativePath(obj, plone):
+    plone_path = '/'.join(plone.getPhysicalPath())
+    obj_path = '/'.join(obj.getPhysicalPath())
+    return obj_path.replace(plone_path + '/', '')
+
 def export_content(options):
 
     log('Exporting content')
@@ -366,9 +118,14 @@ def export_content(options):
     os.mkdir(export_dir)
     brains = catalog()
     log('%d items' % len(brains))
+
+    fp = file(os.path.join(options.export_directory, 'content.ini'), 'w')
     errors = list()
+    num_exported = 0
+    stats = dict()
     for i, brain in enumerate(brains):
-        if i % 50 == 0:
+    
+        if options.verbose and i % 50 == 0:
             log(i)
         try:
             obj = brain.getObject()
@@ -385,12 +142,20 @@ def export_content(options):
             errors.append(dict(path=brain.getPath(), error='no schema'))
             continue
 
+        if obj.portal_type in IGNORED_TYPES:
+            continue
+
         obj_data = dict(schemadata=dict(), metadata=dict())        
+        ext_filename = None
         for field in schema.fields():
             name = field.getName()
             value = field.get(obj)
             if name in ('image', 'file'):
-                value = str(value)
+                ext_filename = os.path.join(export_dir, '%s.bin' % obj.UID())
+                extfp = file(ext_filename, 'wb')
+                extfp.write(str(value))
+                extfp.close()
+                value = 'file://%s.bin' % obj.UID()
             elif name == 'relatedItems':
                 value = [obj.UID() for obj in value]
             obj_data['schemadata'][name] = value
@@ -402,14 +167,38 @@ def export_content(options):
         obj_data['metadata']['content_type'] = _getContentType(obj)
         obj_data['metadata']['text_format '] = _getTextFormat(obj)
         obj_data['metadata']['local_roles'] = obj.get_local_roles()
+        obj_data['metadata']['parents'] = _getParents(obj)
+        obj_data['metadata']['path'] = _getRelativePath(obj, options.plone)
+
+        if not stats.has_key(obj.portal_type):
+            stats[obj.portal_type] = 0
+        stats[obj.portal_type] += 1
+        num_exported += 1
+
+        # write to INI file
+        print >>fp, '[%d]' % i
+        print >>fp, 'path = %s' % _getRelativePath(obj, options.plone)
+        print >>fp, 'id = %s' % obj.getId()
+        print >>fp, 'portal_type = %s' % obj.portal_type
+        print >>fp, 'uid = %s' % obj.UID()
+        print >>fp
+
+        # dump data as pickle
         pickle_name = os.path.join(export_dir, obj.UID())
-        try:
-            cPickle.dump(obj_data, file(pickle_name, 'wb'))
-        except TypeError:
-            import pdb; pdb.set_trace()     
-    
-    for e in errors:
-        log(e)
+        cPickle.dump(obj_data, file(pickle_name, 'wb'))
+
+    fp.close()
+
+    if errors:
+        log('Errors')    
+        for e in errors:
+            log(e)
+
+    log('Stats')
+    log('%d items exported' % num_exported)
+    for k in sorted(stats.keys()):
+        log('%-40s %d' % (k, stats[k]))
+
 
 def migrate_site(app, options):
 
@@ -436,6 +225,7 @@ def migrate_site(app, options):
     options.export_directory = export_dir
     options.plone = plone
 
+    export_groups(options)
     export_members(options)
     export_content(options)
     log('Export done...releasing memory und Tschuessn')
@@ -445,6 +235,7 @@ if __name__ == '__main__':
     from optparse import OptionParser
     from AccessControl.SecurityManagement import newSecurityManager
     import Zope
+    gc.enable()
 
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
