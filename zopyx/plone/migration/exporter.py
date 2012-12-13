@@ -13,6 +13,9 @@ IGNORED_TYPES = (
     'NewsletterTheme',
 )
 
+def log(s):
+    print >>sys.stdout, s
+
 def export_groups(options):
 
     log('Exporting groups')
@@ -87,10 +90,6 @@ def export_structure(options):
     fp = file(os.path.join(options.export_directory, 'structure.ini'), 'w')
     _export_structure(fp, options.plone)
     fp.close()    
-
-
-def log(s):
-    print >>sys.stdout, s
 
 def _getReviewState(obj):
     try:
