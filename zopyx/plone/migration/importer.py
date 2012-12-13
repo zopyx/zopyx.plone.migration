@@ -18,9 +18,7 @@ from AccessControl.SecurityManagement import newSecurityManager
 
 
 def import_members(options):
-
     log('Importing members')
-
     pr = options.plone.portal_registration
     pm = options.plone.portal_membership
     members_ini = os.path.join(options.input_directory, 'members.ini')
@@ -61,6 +59,32 @@ def import_members(options):
             log(e)
     log('%d members imported' % count)
 
+def import_groups(options):
+    log('Importing groups')
+    groups_tool = options.plone.portal_groups
+    groups_ini = os.path.join(options.input_directory, 'groups.ini')
+
+    CP = ConfigParser()
+    CP.read([groups_ini])
+    get = CP.get
+
+    count = 0
+    errors = list()
+    for section in CP.sections():
+        grp_id = get(section, 'name')
+        members = get(section, 'members').split(',')
+        if options.verbose:
+            log('-> %s' % grp_id)
+
+        roles = get(section, 'roles').split('/')
+        groups_tool.addGroup(grp_id)    
+        grp = groups_tool.getGroupById(grp_id)
+        for member in members:
+            grp.addMember(member)
+        count += 1
+                                  
+    log('%d groups imported' % count)
+
 def log(s):
     print >>sys.stdout, s
 
@@ -91,9 +115,12 @@ def import_plone(app, options):
     profiles = ['plonetheme.sunburst:default']
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
+
     plone = setup_plone(app, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
+    import_groups(options)
+
     return plone.absolute_url(1)
 
 def import_site(options):
@@ -112,14 +139,11 @@ def import_site(options):
 
 
 if __name__ == '__main__':
-
-
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-i', '--input', dest='input_directory', default='')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
-
     options, args = parser.parse_args()
     import_site(options)
 
