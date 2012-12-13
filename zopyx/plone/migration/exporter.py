@@ -108,7 +108,7 @@ class BaseHandler(object):
         print >>self.fp, 'id = %s' % obj.getId()
         print >>self.fp, 'title = %s' % fix_oneline(obj.Title())
         print >>self.fp, 'Description = %s' % fix_oneline(description)
-        print >>self.fp, 'owner = %s' % obj.getOwner()
+        print >>self.fp, 'owner = %s' % obj.getOwner().getUserName()
         print >>self.fp, 'review-state = %s' % review_state
         print >>self.fp, 'created = %f' % obj.created().timeTime()
         print >>self.fp, 'effective = %f' % obj.effective().timeTime()
@@ -333,20 +333,59 @@ registerHandler(JobAngebotHandler)
 def log(s):
     print >>sys.stdout, s
 
+def _getReviewState(obj):
+    try:
+        return obj.portal_workflow.getInfoFor(obj, 'review_state')
+    except WorkflowException:
+        print 'error review state'
+        return None
+
+def _getTextFormat(obj):
+    text_format = None
+    if hasattr(obj, 'text_format'):
+        text_format = obj.text_format
+    return text_format
+
+def _getContentType(obj):
+    text_format = _getTextFormat(obj)
+    ct = None       
+    try:
+        ct = obj.getContentType()
+    except AttributeError:
+        ct = obj.content_type()
+    if ct is not None: 
+        if text_format in ('html', 'structured-text'):
+            ct = 'text/html'
+    return ct
+
 def export_content(options):
 
+    log('Exporting content')
     catalog = options.plone.portal_catalog
     export_dir = os.path.join(options.export_directory, 'content')
     os.mkdir(export_dir)
-    for brain in catalog():
-        obj = brain.getObject()
+    brains = catalog()
+    log('%d items' % len(brains))
+    errors = list()
+    for i, brain in enumerate(brains):
+        if i % 50 == 0:
+            log(i)
+        try:
+            obj = brain.getObject()
+        except Exception, e:
+            try:
+                obj = options.plone.unrestrictedTraverse(brain.getPath())
+            except Exception, e:
+                errors.append(dict(path=brain.getPath(), error=e))
+                continue
+            
         try:
             schema = obj.Schema()
         except AttributeError:
+            errors.append(dict(path=brain.getPath(), error='no schema'))
             continue
 
-        print brain.getPath()
-        obj_data = dict(schemadata=dict(), metadata=dict())
+        obj_data = dict(schemadata=dict(), metadata=dict())        
         for field in schema.fields():
             name = field.getName()
             value = field.get(obj)
@@ -357,15 +396,24 @@ def export_content(options):
             obj_data['schemadata'][name] = value
 
         obj_data['metadata']['uid'] = obj.UID()
+        obj_data['metadata']['portal_type'] = obj.portal_type
+        obj_data['metadata']['review_state'] = _getReviewState(obj)
+        obj_data['metadata']['owner'] = obj.getOwner().getUserName()
+        obj_data['metadata']['content_type'] = _getContentType(obj)
+        obj_data['metadata']['text_format '] = _getTextFormat(obj)
+        obj_data['metadata']['local_roles'] = obj.get_local_roles()
         pickle_name = os.path.join(export_dir, obj.UID())
         try:
             cPickle.dump(obj_data, file(pickle_name, 'wb'))
-        except:
-            import pdb; pdb.set_trace() 
+        except TypeError:
+            import pdb; pdb.set_trace()     
+    
+    for e in errors:
+        log(e)
 
 def migrate_site(app, options):
 
-    plone = app.restrictedTraverse(options.path, None)
+    plone = app.unrestrictedTraverse(options.path, None)
     if plone is None:
         raise RuntimeError('Plone site not found (%s)' % options.path)
 
@@ -390,8 +438,7 @@ def migrate_site(app, options):
 
     export_members(options)
     export_content(options)
-
-
+    log('Export done...releasing memory und Tschuessn')
 
 if __name__ == '__main__':
 
