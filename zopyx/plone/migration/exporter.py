@@ -70,25 +70,36 @@ def export_members(options):
     log('exported %d users' % len(acl_users.getUserNames()))
 
 
+def newCounter():
+    i = 0
+    while 1:
+        yield i
+        i += 1
+
+
 def export_structure(options):
 
-    def _export_structure(fp, context, count=0):
+    def _export_structure(fp, context, counter):
 
         children = context.contentValues()
         children_uids = [c.UID() for c in children if getattr(c, 'UID', None) and c.UID()]
-        print >>fp, '[%d]' % count
+        context_uid = ''
+        if getattr(context.aq_inner, 'UID', None):
+            context_uid = context.UID()
+        print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
+        print >>fp, 'uid = %s' % context_uid
         print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
         print >>fp, 'portal_type = %s' % context.portal_type
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
         print >>fp
         for child in children:
             if getattr(child.aq_inner, 'isPrincipiaFolderish', 0):
-                _export_structure(fp, child, count+1)
+                _export_structure(fp, child, counter)
 
     log('Exporting structure')
     fp = file(os.path.join(options.export_directory, 'structure.ini'), 'w')
-    _export_structure(fp, options.plone)
+    _export_structure(fp, options.plone, newCounter())
     fp.close()    
 
 def _getReviewState(obj):
@@ -173,9 +184,13 @@ def export_content(options):
             if name in ('image', 'file'):
                 ext_filename = os.path.join(export_dir, '%s.bin' % obj.UID())
                 extfp = file(ext_filename, 'wb')
-                extfp.write(str(value))
+                try:
+                    data = str(value.data)
+                except:
+                    data = value
+                extfp.write(data)
                 extfp.close()
-                value = 'file://%s.bin' % obj.UID()
+                value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), obj.UID())
             elif name == 'relatedItems':
                 value = [obj.UID() for obj in value]
             obj_data['schemadata'][name] = value
@@ -196,11 +211,12 @@ def export_content(options):
         num_exported += 1
 
         # write to INI file
-        print >>fp, '[%d]' % i
+        print >>fp, '[%s]' % obj.UID()
         print >>fp, 'path = %s' % _getRelativePath(obj, options.plone)
         print >>fp, 'id = %s' % obj.getId()
         print >>fp, 'portal_type = %s' % obj.portal_type
         print >>fp, 'uid = %s' % obj.UID()
+        print >>fp, 'related_items = %s' % ','.join([o.UID() for o in obj.getRelatedItems()])
         print >>fp
 
         # dump data as pickle

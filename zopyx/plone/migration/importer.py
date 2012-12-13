@@ -8,6 +8,8 @@ import shutil
 import tempfile
 import glob
 import transaction
+import urllib2
+import cPickle
 from datetime import datetime
 from ConfigParser import ConfigParser
 from Products.CMFPlone.factory import addPloneSite
@@ -16,6 +18,7 @@ from Testing.makerequest import makerequest
 from optparse import OptionParser
 from AccessControl.SecurityManagement import newSecurityManager
 
+IGNORED_FIELDS = ('id',)
 
 def import_members(options):
     log('Importing members')
@@ -85,6 +88,99 @@ def import_groups(options):
                                   
     log('%d groups imported' % count)
 
+
+def folder_create(root, dirname, portal_type):
+
+    current = root
+    components = dirname.split('/')
+    for c in components[:-1]:
+        if not c: 
+            continue
+        if not c in current.objectIds():
+            #_createObjectByType('Folder', current, id=c)
+            current.invokeFactory('Folder', id=c)
+        current = getattr(current, c)
+    current.invokeFactory(portal_type, id=components[-1])
+    return current[components[-1]]
+
+
+def update_content(options, new_obj, old_uid):
+    """ Update schema data of 'new_obj' with the pickled
+        data for 'old_uid'.
+    """
+
+    pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+    obj_data = cPickle.load(file(pickle_filename))
+    for k,v in obj_data['schemadata'].items():
+        if k in IGNORED_FIELDS:
+            continue
+        field = new_obj.Schema().getField(k)
+        field.set(new_obj, v)
+    new_obj.reindexObject()
+
+def create_new_obj(folder, old_uid):
+    if not old_uid:
+        return
+    pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+    if not os.path.exists(pickle_filename):
+        return
+    obj_data = cPickle.load(file(pickle_filename))
+    id_ = obj_data['schemadata']['id']
+    if id_ in folder.objectIds():
+        id_ = id_ + '-2'
+    folder.invokeFactory(obj_data['metadata']['portal_type'], id=id_)
+    new_obj = folder[id_]
+    for k,v in obj_data['schemadata'].items():
+        if k in IGNORED_FIELDS:
+            continue
+        field = new_obj.Schema().getField(k)
+        if field is None:
+            continue
+        if isinstance(v, basestring) and v.startswith('file://'):
+            v = urllib2.urlopen(v).read()
+        field.set(new_obj, v)
+    new_obj.reindexObject()
+
+
+def import_content(options):
+    log('Importing Content')
+    content_ini = os.path.join(options.input_directory, 'structure.ini')
+    CP = ConfigParser()
+    CP.read([content_ini])
+    get = CP.get
+
+    sections = CP.sections()
+    sections.sort(lambda x,y: cmp(int(x), int(y)))
+
+    # Recreate folderish structure first
+    for i, section in enumerate(sections):
+        if i==0: # Plone site
+            continue
+        id = CP.get(section, 'id')
+        uid = CP.get(section, 'uid')
+        path = CP.get(section, 'path')
+        portal_type = CP.get(section, 'portal_type')
+        new_obj = folder_create(options.plone, path, portal_type)
+        if uid:
+            update_content(options, new_obj, uid)
+
+    transaction.savepoint()
+
+    # Now recreate the child objects within
+    for i, section in enumerate(sections):
+        uids = CP.get(section, 'children_uids').split(',')
+        if i == 0:
+            current = options.plone
+        else:
+            path = CP.get(section, 'path')
+        current = options.plone.restrictedTraverse(path)
+        for uid in uids:
+            create_new_obj(current, uid)
+
+        if i % 10 == 0:
+            transaction.savepoint()
+
+
 def log(s):
     print >>sys.stdout, s
 
@@ -120,6 +216,7 @@ def import_plone(app, options):
     options.plone = plone
     import_members(options)
     import_groups(options)
+    import_content(options)
 
     return plone.absolute_url(1)
 
