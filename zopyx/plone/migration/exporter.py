@@ -68,6 +68,29 @@ def export_members(options):
     fp.close()
     log('exported %d users' % len(acl_users.getUserNames()))
 
+
+def export_structure(options):
+
+    def _export_structure(fp, context, count=0):
+
+        children = context.contentValues()
+        children_uids = [c.UID() for c in children]
+        print >>fp, '[%d]' % count
+        print >>fp, 'id = %s' % context.getId()
+        print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
+        print >>fp, 'portal_type = %s' % context.portal_type
+        print >>fp, 'children_uids = %s' % ','.join(children_uids)
+        print >>fp
+        for child in children:
+            if getattr(child.aq_inner, 'isPrincipiaFolderish', 0):
+                _export_structure(fp, child, count+1)
+
+    log('Exporting structure')
+    fp = file(os.path.join(options.export_directory, 'structure.ini'), 'w')
+    _export_structure(fp, options.plone)
+    fp.close()    
+
+
 def log(s):
     print >>sys.stdout, s
 
@@ -222,12 +245,16 @@ def migrate_site(app, options):
         raise ValueError('Unknown user: %s' % options.username)
     newSecurityManager(None, user.__of__(uf))
 
+    # inject some extra data instead creating our own datastructure
     options.export_directory = export_dir
     options.plone = plone
 
+    # The export show starts here
     export_groups(options)
     export_members(options)
+    export_structure(options)
     export_content(options)
+
     log('Export done...releasing memory und Tschuessn')
 
 if __name__ == '__main__':
