@@ -17,39 +17,49 @@ from optparse import OptionParser
 from AccessControl.SecurityManagement import newSecurityManager
 
 
-def import_members(plone, import_dir, verbose):
+def import_members(options):
 
-    print 'Importing members'
+    log('Importing members')
 
-    pr = plone.portal_registration
-    pm = plone.portal_membership
-
-    members_ini = os.path.join(import_dir, 'members.ini')
+    pr = options.plone.portal_registration
+    pm = options.plone.portal_membership
+    members_ini = os.path.join(options.input_directory, 'members.ini')
 
     CP = ConfigParser()
     CP.read([members_ini])
     get = CP.get
 
+    count = 0
+    errors = list()
     for section in CP.sections():
         username = get(section, 'username')
-        if verbose:
-            print '-> %s' % username
+        if options.verbose:
+            log('-> %s' % username)
 
         # omit group accounts
         if username.startswith('group_'):
             continue
-
+        
+        roles = get(section, 'roles').split('/') + ['Member']
+    
         try:
-            pr.addMember(username, get(section, 'password'))
-        except:
-            print '-> ERROR: omitting %s' % username
+            pr.addMember(username, 
+                         get(section, 'password'), 
+                         roles=roles)
+        except Exception, e:
+            errors.append(dict(username=username, error=e))
             continue
+        count += 1
         member = pm.getMemberById(username)
         pm.createMemberArea(username)
         member.setMemberProperties(dict(email=get(section, 'email'),
                                         fullname=get(section, 'fullname'),
                                   ))
-
+    if errors:
+        log('Errors')
+        for e in errors:
+            log(e)
+    log('%d members imported' % count)
 
 def log(s):
     print >>sys.stdout, s
@@ -64,7 +74,6 @@ def setup_plone(app, site_id, products=(), profiles=()):
     for product in products:
         if product in ids:
             qit.installProduct(product)
-
     if 'front-page' in plone.objectIds():
         plone.manage_delObjects('front-page')
     return plone
@@ -74,11 +83,17 @@ def import_plone(app, options):
     if not os.path.exists(options.input_directory):
         raise ValueError('Input directory does not exist')
 
+    log('#'*80)
+    log(options.input_directory)
+    log('#'*80)
+
     site_id = options.input_directory.rsplit('/', 1)[-1]
     profiles = ['plonetheme.sunburst:default']
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
     plone = setup_plone(app, site_id, profiles=profiles)
+    options.plone = plone
+    import_members(options)
     return plone.absolute_url(1)
 
 def import_site(options):
