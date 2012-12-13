@@ -1,8 +1,6 @@
 ################################################################
-# Plone ini-style exporter
-#
-# Written by Andreas Jung
-# (C) 2008, ZOPYX Ltd. & Co. KG, D-72070 Tuebingen
+# Poor men's Plone export
+# (C) 2012, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
 import os
@@ -74,7 +72,7 @@ def export_structure(options):
     def _export_structure(fp, context, count=0):
 
         children = context.contentValues()
-        children_uids = [c.UID() for c in children]
+        children_uids = [c.UID() for c in children if getattr(c, 'UID', None) and c.UID()]
         print >>fp, '[%d]' % count
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
