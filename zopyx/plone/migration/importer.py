@@ -22,8 +22,8 @@ from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
 
-IGNORED_FIELDS = ('id',)
-IGNORED_TYPES = ('Topic',)
+IGNORED_FIELDS = ('id', 'relatedItems')
+IGNORED_TYPES = ('Topic', 'Ploneboard', 'PloneboardForum', 'NewsletterTheme', 'Newsletter', 'Section', 'NewsletterBTree')
 
 def import_members(options):
     log('Importing members')
@@ -105,7 +105,8 @@ def folder_create(root, dirname, portal_type):
             #_createObjectByType('Folder', current, id=c)
             current.invokeFactory('Folder', id=c)
         current = getattr(current, c)
-    current.invokeFactory(portal_type, id=components[-1])
+    if not components[-1] in current.objectIds():
+        current.invokeFactory(portal_type, id=components[-1])
     return current[components[-1]]
 
 def changeOwner(obj, owner):
@@ -120,6 +121,10 @@ def setLocalRoles(obj, local_roles):
         return
     for userid, roles in local_roles:
         obj.manage_setLocalRoles(userid, roles)
+
+def setExcludeFromNav(obj):
+    if obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
+        obj.setExcludeFromNav(True)
 
 #############################################################################################################
 # Taken from http://glenfant.wordpress.com/2010/04/02/changing-workflow-state-quickly-on-cmfplone-content/
@@ -187,19 +192,24 @@ def update_content(options, new_obj, old_uid):
     """
 
     pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+    if not os.path.exists(pickle_filename):
+        return
     obj_data = cPickle.load(file(pickle_filename))
+
     for k,v in obj_data['schemadata'].items():
         if k in IGNORED_FIELDS:
             continue
         field = new_obj.Schema().getField(k)
-        field.set(new_obj, v)
+        if field:
+            field.set(new_obj, v)
     
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
+    setExcludeFromNav(new_obj)
     new_obj.reindexObject()
 
-def create_new_obj(folder, old_uid):
+def create_new_obj(plone, folder, old_uid):
     if not old_uid:
         return
     pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
@@ -207,10 +217,15 @@ def create_new_obj(folder, old_uid):
         return
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['schemadata']['id']
-    if id_ in folder.objectIds():
-        id_ = id_ + '-2'
-    folder.invokeFactory(obj_data['metadata']['portal_type'], id=id_)
-    new_obj = folder[id_]
+    path_ = obj_data['metadata']['path']
+    candidate = plone.restrictedTraverse(path_, None)
+    if candidate is None:
+        if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
+            return
+        folder.invokeFactory(obj_data['metadata']['portal_type'], id=id_)
+        new_obj = folder[id_]
+    else:
+        new_obj = candidate
     for k,v in obj_data['schemadata'].items():
         if k in IGNORED_FIELDS:
             continue
@@ -224,6 +239,7 @@ def create_new_obj(folder, old_uid):
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
+    setExcludeFromNav(new_obj)
     new_obj.reindexObject()
 
 
@@ -239,11 +255,12 @@ def import_content(options):
 
     # Recreate folderish structure first
     log('Creating hierarchy structure first')
+    num_sections = len(sections)
     for i, section in enumerate(sections):
-        if options.verbose:
-            log(CP.get(section, 'path'))
         if i==0: # Plone site
             continue
+        if options.verbose:
+            log('--> (%d/%d) %s' % (i, num_sections, CP.get(section, 'path')))
         id = CP.get(section, 'id')
         uid = CP.get(section, 'uid')
         path = CP.get(section, 'path')
@@ -260,19 +277,20 @@ def import_content(options):
     log('Creating content')
     for i, section in enumerate(sections):
         if options.verbose:
-            log(CP.get(section, 'path'))
+            log('--> (%d/%d) %s' % (i, num_sections, CP.get(section, 'path')))
         uids = CP.get(section, 'children_uids').split(',')
         if i == 0:
             current = options.plone
         else:
             path = CP.get(section, 'path')
-        current = options.plone.restrictedTraverse(path)
+            if CP.get(section, 'portal_type') in IGNORED_TYPES:
+                continue
+            current = options.plone.restrictedTraverse(path)
         for uid in uids:
-            create_new_obj(current, uid)
+            create_new_obj(options.plone, current, uid)
 
         if i % 10 == 0:
             transaction.savepoint()
-
 
 def log(s):
     print >>sys.stdout, s
@@ -315,7 +333,6 @@ def import_plone(app, options):
     import_members(options)
     import_groups(options)
     import_content(options)
-
     return plone.absolute_url(1)
 
 def import_site(options):

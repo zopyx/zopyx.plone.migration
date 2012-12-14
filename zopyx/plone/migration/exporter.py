@@ -13,6 +13,10 @@ IGNORED_TYPES = (
     'NewsletterTheme',
 )
 
+PT_REPLACEMENT = {
+    'Large Plone Folder': 'Folder',
+}
+
 def log(s):
     print >>sys.stdout, s
 
@@ -90,7 +94,7 @@ def export_structure(options):
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
         print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
-        print >>fp, 'portal_type = %s' % context.portal_type
+        print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
         print >>fp
         for child in children:
@@ -131,7 +135,8 @@ def _getParents(obj):
     result = list()
     current = obj
     while current.portal_type != 'Plone Site':
-        result.append(dict(id=current.getId(), portal_type=current.portal_type))
+        result.append(dict(id=current.getId(), 
+                           portal_type=PT_REPLACEMENT.get(current.portal_type, current.portal_type)))
         current = current.aq_inner.aq_parent
     return list(reversed(result))
 
@@ -149,15 +154,16 @@ def export_content(options):
     os.mkdir(export_dir)
     brains = catalog()
     log('%d items' % len(brains))
-
+    
     fp = file(os.path.join(options.export_directory, 'content.ini'), 'w')
     errors = list()
     num_exported = 0
     stats = dict()
+    num_brains = len(brains)
     for i, brain in enumerate(brains):
-    
-        if options.verbose and i % 50 == 0:
-            log(i)
+
+        if options.verbose:
+            log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
         try:
             obj = brain.getObject()
         except Exception, e:
@@ -172,7 +178,6 @@ def export_content(options):
         except AttributeError:
             errors.append(dict(path=brain.getPath(), error='no schema'))
             continue
-
         if obj.portal_type in IGNORED_TYPES:
             continue
 
@@ -195,8 +200,9 @@ def export_content(options):
                 value = [obj.UID() for obj in value]
             obj_data['schemadata'][name] = value
 
+        obj_data['metadata']['id'] = obj.getId()
         obj_data['metadata']['uid'] = obj.UID()
-        obj_data['metadata']['portal_type'] = obj.portal_type
+        obj_data['metadata']['portal_type'] = PT_REPLACEMENT.get(obj.portal_type, obj.portal_type)
         obj_data['metadata']['review_state'] = _getReviewState(obj)
         obj_data['metadata']['owner'] = obj.getOwner().getUserName()
         obj_data['metadata']['content_type'] = _getContentType(obj)
@@ -209,6 +215,11 @@ def export_content(options):
             stats[obj.portal_type] = 0
         stats[obj.portal_type] += 1
         num_exported += 1
+        
+        try:
+            related_items = ','.join([o.UID() for o in obj.getRelatedItems()])
+        except AttributeError:
+            related_items = ''
 
         # write to INI file
         print >>fp, '[%s]' % obj.UID()
@@ -216,7 +227,7 @@ def export_content(options):
         print >>fp, 'id = %s' % obj.getId()
         print >>fp, 'portal_type = %s' % obj.portal_type
         print >>fp, 'uid = %s' % obj.UID()
-        print >>fp, 'related_items = %s' % ','.join([o.UID() for o in obj.getRelatedItems()])
+        print >>fp, 'related_items = %s' % related_items
         print >>fp
 
         # dump data as pickle
