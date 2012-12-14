@@ -244,7 +244,7 @@ def export_content(options):
         
         try:
             related_items = ','.join([o.UID() for o in obj.getRelatedItems()])
-            related_items_paths = ','.join([_getRelativePath(o) for o in obj.getRelatedItems()])
+            related_items_paths = ','.join([_getRelativePath(o, options.plone) for o in obj.getRelatedItems()])
         except AttributeError:
             related_items = ''
             related_items_paths = ''
