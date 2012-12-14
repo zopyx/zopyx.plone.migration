@@ -3,6 +3,32 @@
 # (C) 2012, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
+###################################################################################
+# The purpose of this export script is to export AT-based content
+# into a more generic format that can be used by an importer script
+# for re-import into a Plone 4 site.
+#
+# Usage:
+# bin/instance run exporter.py --path /path/to/<plone_id>--output <directory>
+# 
+# The exporter will create a self-contained directory with the exported
+# data unter <directory>/<plone_id>. The directory will contain
+# two INI files contents.ini and structure.ini  that describe
+# the hierarchy structure of the exported site and exported contents.
+# The metadata and real content of each object is stored within the 
+# content subfolder. This directory will contain on file per exported
+# content object. The filename is determined by the original UID
+# of the content object. For binary files like File or Image there is
+# a <uid>.bin file which will contain the original binary data.
+# The files  (except the .bin files) are serialized using Python's
+# Pickle mechanism in order to avoid serialization issues and to preserve
+# the data as is.
+# In addition the exporter cares out the export of members and groups
+# (members.ini, groups.ini)
+# 
+# Tested with Plone 2.5, 3.3
+###################################################################################
+
 import os
 import gc
 import shutil
@@ -218,8 +244,10 @@ def export_content(options):
         
         try:
             related_items = ','.join([o.UID() for o in obj.getRelatedItems()])
+            related_items_paths = ','.join([_getRelativePath(o) for o in obj.getRelatedItems()])
         except AttributeError:
             related_items = ''
+            related_items_paths = ''
 
         # write to INI file
         print >>fp, '[%s]' % obj.UID()
@@ -228,6 +256,7 @@ def export_content(options):
         print >>fp, 'portal_type = %s' % obj.portal_type
         print >>fp, 'uid = %s' % obj.UID()
         print >>fp, 'related_items = %s' % related_items
+        print >>fp, 'related_items_paths = %s' % related_items_paths
         print >>fp
 
         # dump data as pickle
