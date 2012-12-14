@@ -10,15 +10,20 @@ import glob
 import transaction
 import urllib2
 import cPickle
+from optparse import OptionParser
 from datetime import datetime
 from ConfigParser import ConfigParser
+
+from DateTime.DateTime import DateTime
+from OFS.Folder import manage_addFolder
+from Testing.makerequest import makerequest
+from AccessControl.SecurityManagement import newSecurityManager
+from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
-from Testing.makerequest import makerequest
-from optparse import OptionParser
-from AccessControl.SecurityManagement import newSecurityManager
 
 IGNORED_FIELDS = ('id',)
+IGNORED_TYPES = ('Topic',)
 
 def import_members(options):
     log('Importing members')
@@ -103,6 +108,78 @@ def folder_create(root, dirname, portal_type):
     current.invokeFactory(portal_type, id=components[-1])
     return current[components[-1]]
 
+def changeOwner(obj, owner):
+    try:
+        obj.plone_utils.changeOwnershipOf(obj, owner)
+    except KeyError:
+        obj.plone_utils.changeOwnershipOf(obj, 'admin')
+    obj.setCreators([owner])
+
+def setLocalRoles(obj, local_roles):
+    if not local_roles:
+        return
+    for userid, roles in local_roles:
+        obj.manage_setLocalRoles(userid, roles)
+
+#############################################################################################################
+# Taken from http://glenfant.wordpress.com/2010/04/02/changing-workflow-state-quickly-on-cmfplone-content/
+# and slightly adjusted
+#############################################################################################################
+
+def setReviewState(content, state_id, acquire_permissions=False,
+                        portal_workflow=None, **kw):
+    """Change the workflow state of an object
+    @param content: Content obj which state will be changed
+    @param state_id: name of the state to put on content
+    @param acquire_permissions: True->All permissions unchecked and on riles and
+                                acquired
+                                False->Applies new state security map
+    @param portal_workflow: Provide workflow tool (optimisation) if known
+    @param kw: change the values of same name of the state mapping
+    @return: None
+    """
+    if portal_workflow is None:
+        portal_workflow = getToolByName(content, 'portal_workflow')
+
+    # Might raise IndexError if no workflow is associated to this type
+
+    workflows = portal_workflow.getWorkflowsFor(content)
+    if not workflows:
+        return 
+    wf_def = workflows[0]
+    wf_id= wf_def.getId()
+
+    wf_state = {
+        'action': None,
+        'actor': None,
+        'comments': "Setting state to %s" % state_id,
+        'review_state': state_id,
+        'time': DateTime(),
+        }
+
+    # Updating wf_state from keyword args
+    for k in kw.keys():
+        # Remove unknown items
+        if not wf_state.has_key(k):
+            del kw[k]
+    if kw.has_key('review_state'):
+        del kw['review_state']
+    wf_state.update(kw)
+
+    portal_workflow.setStatusOf(wf_id, content, wf_state)
+
+    if acquire_permissions:
+        # Acquire all permissions
+        for permission in content.possible_permissions():
+            content.manage_permission(permission, acquire=1)
+    else:
+        # Setting new state permissions
+        wf_def.updateRoleMappingsFor(content)
+
+    # Map changes to the catalogs
+    content.reindexObject(idxs=['allowedRolesAndUsers', 'review_state'])
+    return
+
 
 def update_content(options, new_obj, old_uid):
     """ Update schema data of 'new_obj' with the pickled
@@ -116,6 +193,10 @@ def update_content(options, new_obj, old_uid):
             continue
         field = new_obj.Schema().getField(k)
         field.set(new_obj, v)
+    
+    changeOwner(new_obj, obj_data['metadata']['owner'])
+    setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
+    setReviewState(new_obj, obj_data['metadata']['review_state'])
     new_obj.reindexObject()
 
 def create_new_obj(folder, old_uid):
@@ -139,6 +220,10 @@ def create_new_obj(folder, old_uid):
         if isinstance(v, basestring) and v.startswith('file://'):
             v = urllib2.urlopen(v).read()
         field.set(new_obj, v)
+
+    changeOwner(new_obj, obj_data['metadata']['owner'])
+    setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
+    setReviewState(new_obj, obj_data['metadata']['review_state'])
     new_obj.reindexObject()
 
 
@@ -153,13 +238,18 @@ def import_content(options):
     sections.sort(lambda x,y: cmp(int(x), int(y)))
 
     # Recreate folderish structure first
+    log('Creating hierarchy structure first')
     for i, section in enumerate(sections):
+        if options.verbose:
+            log(CP.get(section, 'path'))
         if i==0: # Plone site
             continue
         id = CP.get(section, 'id')
         uid = CP.get(section, 'uid')
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
+        if portal_type in IGNORED_TYPES:
+            continue
         new_obj = folder_create(options.plone, path, portal_type)
         if uid:
             update_content(options, new_obj, uid)
@@ -167,7 +257,10 @@ def import_content(options):
     transaction.savepoint()
 
     # Now recreate the child objects within
+    log('Creating content')
     for i, section in enumerate(sections):
+        if options.verbose:
+            log(CP.get(section, 'path'))
         uids = CP.get(section, 'children_uids').split(',')
         if i == 0:
             current = options.plone
@@ -184,10 +277,15 @@ def import_content(options):
 def log(s):
     print >>sys.stdout, s
 
-def setup_plone(app, site_id, products=(), profiles=()):
-    app = makerequest(app)
-    addPloneSite(app, site_id, create_userfolder=True, extension_ids=profiles)
-    plone = app[site_id]
+def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
+    dest = makerequest(app)
+    if dest_folder:
+        if not dest_folder in app.objectIds():
+            manage_addFolder(app, dest_folder)
+        dest = app[dest_folder]
+    addPloneSite(dest, site_id, create_userfolder=True, extension_ids=profiles)
+    plone = dest[site_id]
+    log('Created Plone site at %s' % plone.absolute_url(1))
     qit = plone.portal_quickinstaller
 
     ids = [p['id'] for p in qit.listInstallableProducts(skipInstalled=1) ]
@@ -207,12 +305,12 @@ def import_plone(app, options):
     log(options.input_directory)
     log('#'*80)
 
-    site_id = options.input_directory.rsplit('/', 1)[-1]
+    site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
     profiles = ['plonetheme.sunburst:default']
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
 
-    plone = setup_plone(app, site_id, profiles=profiles)
+    plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
     import_groups(options)
@@ -239,6 +337,7 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-i', '--input', dest='input_directory', default='')
+    parser.add_option('-d', '--dest-folder', dest='dest_folder', default='sites')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     options, args = parser.parse_args()
