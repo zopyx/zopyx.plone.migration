@@ -23,7 +23,22 @@ from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
 
 IGNORED_FIELDS = ('id', 'relatedItems')
-IGNORED_TYPES = ('Topic', 'Ploneboard', 'PloneboardForum', 'NewsletterTheme', 'Newsletter', 'Section', 'NewsletterBTree')
+IGNORED_TYPES = ('Topic', 
+'Ploneboard', 
+'PloneboardForum', 
+'NewsletterTheme', 
+'Newsletter', 
+'Section', 
+'NewsletterBTree', 
+'CalendarXFolder',
+'GMap',
+'Collage', 
+'CollageRow', 
+'CollageColumn',
+'FormFolder',
+'PloneboardConversation',
+'PloneboardComment',
+)
 
 def import_members(options):
     log('Importing members')
@@ -106,7 +121,15 @@ def folder_create(root, dirname, portal_type):
             current.invokeFactory('Folder', id=c)
         current = getattr(current, c)
     if not components[-1] in current.objectIds():
+        try:
+            constrainsMode = current.getConstrainTypesMode()
+        except AttributeError:
+            constrainsMode = None
+        if constrainsMode is not None:
+            current.setConstrainTypesMode(0)
         current.invokeFactory(portal_type, id=components[-1])
+        if constrainsMode is not None:
+            current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
 
 def changeOwner(obj, owner):
@@ -222,7 +245,15 @@ def create_new_obj(plone, folder, old_uid):
     if candidate is None:
         if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
             return
+        try:
+            constrainsMode = folder.getConstrainTypesMode()
+        except AttributeError:
+            constrainsMode = None
+        if constrainsMode is not None:
+            folder.setConstrainTypesMode(0)
         folder.invokeFactory(obj_data['metadata']['portal_type'], id=id_)
+        if constrainsMode is not None:
+            folder.setConstrainTypesMode(constrainsMode)
         new_obj = folder[id_]
     else:
         new_obj = candidate
@@ -234,7 +265,11 @@ def create_new_obj(plone, folder, old_uid):
             continue
         if isinstance(v, basestring) and v.startswith('file://'):
             v = urllib2.urlopen(v).read()
-        field.set(new_obj, v)
+        try:
+            field.set(new_obj, v)
+        except Exception, e:
+            log('Unable to set %s for %s (%s)' % (k, new_obj.absolute_url(1), e))
+            
 
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
