@@ -34,6 +34,8 @@ import gc
 import shutil
 import tempfile
 import cPickle
+from Products.CMFCore.WorkflowCore import WorkflowException
+
 
 IGNORED_TYPES = (
     'NewsletterTheme',

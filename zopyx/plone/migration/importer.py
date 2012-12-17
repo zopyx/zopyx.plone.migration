@@ -245,9 +245,9 @@ def create_new_obj(plone, folder, old_uid):
 
 def import_content(options):
     log('Importing Content')
-    content_ini = os.path.join(options.input_directory, 'structure.ini')
+    structure_ini = os.path.join(options.input_directory, 'structure.ini')
     CP = ConfigParser()
-    CP.read([content_ini])
+    CP.read([structure_ini])
     get = CP.get
 
     sections = CP.sections()
@@ -288,9 +288,33 @@ def import_content(options):
             current = options.plone.restrictedTraverse(path)
         for uid in uids:
             create_new_obj(options.plone, current, uid)
+        log('--> %d children created' % len(uids))
 
         if i % 10 == 0:
             transaction.savepoint()
+
+
+    # Now using content.ini for post migration fix-up
+    content_ini = os.path.join(options.input_directory, 'content.ini')
+    CP = ConfigParser()
+    CP.read([content_ini])
+    get = CP.get
+
+    sections = CP.sections()
+    log('Post migration fix-up')
+    for i, section in enumerate(sections):
+        related_items_paths = CP.get(section, 'related_items_paths').split(',')
+        if related_items_paths:
+            path = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path,None)
+            if obj is not None:
+                ref_objs = []
+                for related_items_path in related_items_paths:
+                    o = options.plone.restrictedTraverse(related_items_path, None)
+                    if o is not None:
+                        ref_objs.append(o)
+                obj.setRelatedItems(ref_objs)                                            
+
 
 def log(s):
     print >>sys.stdout, s
