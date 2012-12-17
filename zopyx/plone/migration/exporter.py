@@ -138,7 +138,7 @@ def _getReviewState(obj):
     try:
         return obj.portal_workflow.getInfoFor(obj, 'review_state')
     except WorkflowException:
-        print 'error review state'
+#        log('Error retrieving review state for %s' % obj.absolute_url(1))
         return None
 
 def _getTextFormat(obj):
