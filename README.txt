@@ -84,3 +84,4 @@ D-72074 Tübingen, Germany
 www.zopyx.com
 info@zopyx.com
 
+Written for Veit Schiele Communications GmbH (www.veit-schiele.de)
