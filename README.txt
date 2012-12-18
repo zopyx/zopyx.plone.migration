@@ -7,6 +7,22 @@ The purpose of this package is to provide scripts to export AT-based content
 into a more generic format that can be used by an importer script for
 re-import into a Plone 4 site.
 
+Installation
+------------
+
+Add the following to your buildout:
+
+    [buildout]
+    parts = 
+        exportimport
+
+
+    [exportimport]
+    recipe = zc.recipe.egg:scripts
+    eggs = zopyx.plone.migration
+    
+
+
 Export of a Plone site
 ----------------------
 
@@ -43,7 +59,15 @@ issues and to preserve the data as is.
 In addition the exporter cares out the export of members and groups
 (members.ini, groups.ini)
 
+Note that the ``bin/exporter`` script is **not directly** callable.
+It must always be run using the ``bin/instance run somescript.py`` mechanism
+of the Plone startup script - always!
+
 The export has been tested against Plone 2.5 and Plone 3.3.
+
+Importing to a new Plone site
+-----------------------------
+To be written
 
 
 Licence
