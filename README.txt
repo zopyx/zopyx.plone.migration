@@ -5,7 +5,10 @@ Export/import migration script for Plone 2/3 sites to Plone 4
 
 The purpose of this package is to provide scripts to export AT-based content
 into a more generic format that can be used by an importer script for
-re-import into a Plone 4 site.
+re-import into a Plone 4 site. The main goal of the scripts is to get
+Plone content in a more clean way out of Plone 2/3 site and to import it
+into a clean way into a fresh Plone 4 site.
+
 
 Installation
 ------------
@@ -20,7 +23,6 @@ Add the following to your buildout::
     [exportimport]
     recipe = zc.recipe.egg:scripts
     eggs = zopyx.plone.migration
-    
 
 
 Export of a Plone site
