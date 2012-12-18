@@ -69,8 +69,31 @@ The export has been tested against Plone 2.5 and Plone 3.3.
 
 Importing to a new Plone site
 -----------------------------
-To be written
 
+For importing a formerly exported Plone site you must use the following
+command-line:
+
+
+    bin/instance run bin/importer -i <input-directory> [-t] [-v]
+
+``input-directory`` is here the full path to the formerly created output
+directory (``--output`` parameter + site prefix). The import script will
+create a new Plone site under ``sites/<site-prefix>``. The ``site-prefix`` is
+taken from the last path component of the output directory. You can specify
+the ``-t`` or ``--timestamp`` option in order to add a timestamp to the site
+id of the new Plone site. This is useful for re-running the importer script
+multiple times. The ``sites`` prefix (a folder in Plone can be customized
+using the ``-d`` or ``--dest-folder`` commandline option. The importer assumes
+that there is an ``admin`` account with manager permissions inside the root
+acl_users folder (use ``-u`` or ``-user`` option for overriding the default
+admin account name).
+
+To do
+-----
+
+- support commandline parameter for specifying a list of extension profiles
+  to be used while creating a new Plone site
+- better dealing with arbitrary --dest-folder options
 
 Licence
 -------
