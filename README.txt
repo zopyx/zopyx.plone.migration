@@ -77,11 +77,11 @@ This package is licenced under the Zope Public Licence V 2.1 (ZPL 2.1)
 Author
 ------
 
-ZOPYX Limited
-Andreas Jung
-Hundskapfklinge 33
-D-72074 Tübingen, Germany
-www.zopyx.com
-info@zopyx.com
+| ZOPYX Limited
+| Andreas Jung
+| Hundskapfklinge 33
+| D-72074 Tübingen, Germany
+| www.zopyx.com
+| info@zopyx.com
 
 Written for Veit Schiele Communications GmbH (www.veit-schiele.de)
