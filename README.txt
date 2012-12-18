@@ -10,7 +10,7 @@ re-import into a Plone 4 site.
 Installation
 ------------
 
-Add the following to your buildout:
+Add the following to your buildout::
 
     [buildout]
     parts = 
