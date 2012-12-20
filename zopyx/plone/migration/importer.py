@@ -384,6 +384,8 @@ def import_plone(app, options):
 
     site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
     profiles = ['plonetheme.sunburst:default']
+    ext_profiles = options.extension_profiles.split(',')
+    profiles.extend(ext_profiles)
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
 
@@ -412,6 +414,7 @@ def import_site(options):
 if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
+    parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
     parser.add_option('-i', '--input', dest='input_directory', default='')
     parser.add_option('-d', '--dest-folder', dest='dest_folder', default='sites')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
