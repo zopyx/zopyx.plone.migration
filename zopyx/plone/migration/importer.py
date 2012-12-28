@@ -21,6 +21,8 @@ from AccessControl.SecurityManagement import newSecurityManager
 from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
+from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
+from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = ('Topic', 
@@ -167,6 +169,20 @@ def setLocalRoles(obj, local_roles):
     for userid, roles in local_roles:
         obj.manage_setLocalRoles(userid, roles)
 
+def setLayout(obj, layout):
+    layout_ids = [id for id, title in obj.getAvailableLayouts()]
+    if layout in layout_ids:
+        obj.setLayout(layout)
+    else:
+        log('Can not set layout %s on %s' % (layout, obj.absolute_url()))
+
+def setWFPolicy(obj, wf_policy):
+    if not wf_policy:
+        return
+    i = WorkflowPolicyConfig(wf_policy['workflow_policy_in'], wf_policy['workflow_policy_below'])
+    setattr(obj, WorkflowPolicyConfig_id, i)
+
+
 def setExcludeFromNav(obj):
     if obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
         obj.setExcludeFromNav(True)
@@ -251,6 +267,8 @@ def update_content(options, new_obj, old_uid):
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
+    setLayout(new_obj, obj_data['metadata']['layout'])
+    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj)
     new_obj.reindexObject()
 
@@ -296,6 +314,8 @@ def create_new_obj(plone, folder, old_uid):
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
+    setLayout(new_obj, obj_data['metadata']['layout'])
+    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj)
     new_obj.reindexObject()
 
@@ -385,7 +405,9 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
         dest = dest.restrictedTraverse(dest_folder)
     if site_id in dest.objectIds():
         log('%s already exists in %s - REMOVING IT' % (site_id, dest.absolute_url(1)))
-        dest.manage_delObjects(site_id)
+        if dest.meta_type != 'Folder':
+            raise RuntimeError('Destination must be a Folder instance (found %s)' % dest.meta_type)
+        dest.manage_delObjects([site_id])
     log('Creating new Plone site with extension profiles %s' % profiles)
     addPloneSite(dest, site_id, create_userfolder=True, extension_ids=profiles)
     plone = dest[site_id]
