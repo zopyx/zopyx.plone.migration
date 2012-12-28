@@ -26,8 +26,8 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConf
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = ('Topic', 
-    'Ploneboard', 
-    'PloneboardForum', 
+#    'Ploneboard', 
+#    'PloneboardForum', 
     'NewsletterTheme', 
 #'Newsletter', 
     'Section', 
@@ -35,17 +35,18 @@ IGNORED_TYPES = ('Topic',
     'NewsletterReference', 
     'NewsletterRichReference', 
     'CalendarXFolder',
-    'GMap',
-    'Collage', 
-    'CollageRow', 
-    'CollageColumn',
-    'FormFolder',
-    'PloneboardConversation',
-    'PloneboardComment',
+#    'GMap',
+#    'Collage', 
+#    'CollageRow', 
+#    'CollageColumn',
+#    'FormFolder',
+#    'PloneboardConversation',
+#    'PloneboardComment',
 )   
 
 PT_REPLACE_MAP = {
     'Newsletter' : 'EasyNewsletter',
+    'GMap' : 'GeoLocation',
 }
 
 def import_plonegazette_subscribers(options, newsletter, old_uid):
@@ -262,7 +263,10 @@ def update_content(options, new_obj, old_uid):
             continue
         field = new_obj.Schema().getField(k)
         if field:
-            field.set(new_obj, v)
+            try:
+                field.set(new_obj, v)
+            except Exception, e:
+                log('Could not update field %s of %s (error=%s)' % (field.getName(), new_obj.absolute_url(), e))
     
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
