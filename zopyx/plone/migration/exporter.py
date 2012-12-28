@@ -130,10 +130,9 @@ def export_structure(options):
     def _export_structure(fp, context, counter):
 
         children = context.contentValues()
-        children_uids = [c.UID() for c in children if getattr(c, 'UID', None) and c.UID()]
+        children_uids = [_getUID(c) for c in children if _getUID(c)]
         context_uid = ''
-        if getattr(context.aq_inner, 'UID', None):
-            context_uid = context.UID()
+        context_uid = _getUID(context)
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
