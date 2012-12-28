@@ -355,11 +355,14 @@ def log(s):
     print >>sys.stdout, s
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
-    dest = makerequest(app)
+    app = makerequest(app)
+    dest = app
     if dest_folder:
-        if not dest_folder in app.objectIds():
-            manage_addFolder(app, dest_folder)
-        dest = app[dest_folder]
+        dest = dest.restrictedTraverse(dest_folder)
+    if site_id in dest.objectIds():
+        log('%s already exists in %s - REMOVING IT' % (site_id, dest.absolute_url(1)))
+        dest.manage_delObjects(site_id)
+    log('Creating new Plone site with extension profiles %s' % profiles)
     addPloneSite(dest, site_id, create_userfolder=True, extension_ids=profiles)
     plone = dest[site_id]
     log('Created Plone site at %s' % plone.absolute_url(1))

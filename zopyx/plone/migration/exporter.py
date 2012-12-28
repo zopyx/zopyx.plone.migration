@@ -30,10 +30,12 @@
 ###################################################################################
 
 import os
+import uuid
 import gc
 import shutil
 import tempfile
 import cPickle
+import transaction
 from Products.CMFCore.WorkflowCore import WorkflowException
 
 
@@ -49,7 +51,7 @@ def log(s):
     print >>sys.stdout, s
 
 def export_plonegazette(options, newsletter):
-    ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % newsletter.UID())
+    ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
     fp = file(ini_fn, 'w')
     for i, subs in enumerate(newsletter.subscribers.contentValues()):
@@ -197,6 +199,19 @@ def _getWFPolicy(obj):
         return {}
     return wf_policy.__dict__
 
+
+def _getUID(obj):
+    try:
+        return obj.aq_inner.aq_base.UID()
+    except AttributeError:
+        pass
+        
+    if hasattr(obj.aq_inner.aq_base, 'fake_uid'):
+        return obj.aq_inner.fake_uid
+    fake_uid = str(uuid.uuid4())
+    obj.fake_uid = fake_uid
+    return fake_uid
+
 def export_content(options):
 
     log('Exporting content')
@@ -212,7 +227,7 @@ def export_content(options):
     stats = dict()
     num_brains = len(brains)
     for i, brain in enumerate(brains):
-
+            
         if options.verbose:
             log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
         try:
@@ -241,7 +256,7 @@ def export_content(options):
             except ValueError:
                 continue
             if name in ('image', 'file'):
-                ext_filename = os.path.join(export_dir, '%s.bin' % obj.UID())
+                ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
                 extfp = file(ext_filename, 'wb')
                 try:
                     data = str(value.data)
@@ -249,13 +264,13 @@ def export_content(options):
                     data = value
                 extfp.write(data)
                 extfp.close()
-                value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), obj.UID())
+                value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
             elif name == 'relatedItems':
-                value = [obj.UID() for obj in value]
+                value = [_getUID(obj) for obj in value]
             obj_data['schemadata'][name] = value
 
         obj_data['metadata']['id'] = obj.getId()
-        obj_data['metadata']['uid'] = obj.UID()
+        obj_data['metadata']['uid'] = _getUID(obj)
         obj_data['metadata']['portal_type'] = PT_REPLACEMENT.get(obj.portal_type, obj.portal_type)
         obj_data['metadata']['review_state'] = _getReviewState(obj)
         obj_data['metadata']['owner'] = obj.getOwner().getUserName()
@@ -285,11 +300,11 @@ def export_content(options):
             related_items_paths = ''
 
         # write to INI file
-        print >>fp, '[%s]' % obj.UID()
+        print >>fp, '[%s]' % _getUID(obj)
         print >>fp, 'path = %s' % _getRelativePath(obj, options.plone)
         print >>fp, 'id = %s' % obj.getId()
         print >>fp, 'portal_type = %s' % obj.portal_type
-        print >>fp, 'uid = %s' % obj.UID()
+        print >>fp, 'uid = %s' % _getUID(obj)
         print >>fp, 'related_items = %s' % related_items
         print >>fp, 'related_items_paths = %s' % related_items_paths
         print >>fp, 'layout = %s' % obj_data['metadata']['layout']
@@ -297,7 +312,7 @@ def export_content(options):
         print >>fp
 
         # dump data as pickle
-        pickle_name = os.path.join(export_dir, obj.UID())
+        pickle_name = os.path.join(export_dir, _getUID(obj))
         cPickle.dump(obj_data, file(pickle_name, 'wb'))
 
     fp.close()
@@ -313,7 +328,7 @@ def export_content(options):
         log('%-40s %d' % (k, stats[k]))
 
 
-def migrate_site(app, options):
+def export_site(app, options):
 
     plone = app.unrestrictedTraverse(options.path, None)
     if plone is None:
@@ -363,4 +378,5 @@ if __name__ == '__main__':
 
     options, args = parser.parse_args()
     options.app = app
-    migrate_site(app, options)
+    export_site(app, options)
+    transaction.commit()
