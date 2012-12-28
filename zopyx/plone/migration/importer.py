@@ -321,6 +321,9 @@ def create_new_obj(plone, folder, old_uid):
 
 
 def import_content(options):
+
+    installed_products = [p['id'] for p in options.plone.portal_quickinstaller.listInstalledProducts()]
+
     log('Importing Content')
     structure_ini = os.path.join(options.input_directory, 'structure.ini')
     CP = ConfigParser()
@@ -382,6 +385,25 @@ def import_content(options):
     sections = CP.sections()
     log('Post migration fix-up')
     for i, section in enumerate(sections):
+
+        # folder album view
+        if CP.get(section, 'portal_type') == 'Folder':
+            path = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path,None)
+            images = obj.getFolderContents({'portal_type' : 'Image'})
+            if len(images) == len(obj.contentValues()):
+                obj.selectViewTemplate('galleryview')
+
+        # Flowplayer
+        if CP.get(section, 'portal_type') == 'File':
+            id_ = CP.get(section, 'id')
+            path = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path,None)
+            basename, ext = os.path.splitext(id_)
+            if ext.lower() in ('.mp3', '.mp4', '.wmv') and 'collective.flowplayer' in installed_products:
+                obj.selectViewTemplate('flowplayer')
+
+        # related items
         related_items_paths = CP.get(section, 'related_items_paths').split(',')
         if related_items_paths:
             path = CP.get(section, 'path')
