@@ -191,6 +191,12 @@ def _getRelativePath(obj, plone):
 def _getLayout(obj):
     return obj.getLayout() or obj.getDefaultLayout()
 
+def _getWFPolicy(obj):
+    wf_policy = getattr(obj.aq_inner, '.wf_policy_config', None)
+    if wf_policy is None:
+        return {}
+    return wf_policy.__dict__
+
 def export_content(options):
 
     log('Exporting content')
@@ -259,6 +265,7 @@ def export_content(options):
         obj_data['metadata']['parents'] = _getParents(obj)
         obj_data['metadata']['path'] = _getRelativePath(obj, options.plone)
         obj_data['metadata']['layout'] = _getLayout(obj)
+        obj_data['metadata']['wf_policy'] = _getWFPolicy(obj)
 
         # content-type specific export code
         if obj.portal_type == 'Newsletter':
@@ -286,6 +293,7 @@ def export_content(options):
         print >>fp, 'related_items = %s' % related_items
         print >>fp, 'related_items_paths = %s' % related_items_paths
         print >>fp, 'layout = %s' % obj_data['metadata']['layout']
+        print >>fp, 'wf_policy = %s' % obj_data['metadata']['wf_policy']
         print >>fp
 
         # dump data as pickle
