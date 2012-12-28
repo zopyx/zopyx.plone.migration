@@ -24,21 +24,40 @@ from Products.CMFPlone.utils import _createObjectByType
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = ('Topic', 
-'Ploneboard', 
-'PloneboardForum', 
-'NewsletterTheme', 
-'Newsletter', 
-'Section', 
-'NewsletterBTree', 
-'CalendarXFolder',
-'GMap',
-'Collage', 
-'CollageRow', 
-'CollageColumn',
-'FormFolder',
-'PloneboardConversation',
-'PloneboardComment',
-)
+    'Ploneboard', 
+    'PloneboardForum', 
+    'NewsletterTheme', 
+#'Newsletter', 
+    'Section', 
+    'NewsletterBTree', 
+    'CalendarXFolder',
+    'GMap',
+    'Collage', 
+    'CollageRow', 
+    'CollageColumn',
+    'FormFolder',
+    'PloneboardConversation',
+    'PloneboardComment',
+)   
+
+PT_REPLACE_MAP = {
+    'Newsletter' : 'EasyNewsletter',
+}
+
+def import_plonegazette_subscribers(options, newsletter, old_uid):
+    """ Import PloneGazette subsribers into a new EasyNewsletter instance """
+
+    subscribers_ini = os.path.join(options.input_directory, '%s_plonegazette_subscribers' % old_uid)
+    CP = ConfigParser()
+    CP.read([subscribers_ini])
+    get = CP.get
+    for section in CP.sections():
+        id_ = get(section, 'id')
+        newsletter.invokeFactory('ENLSubscriber', id=id_)
+        subscriber = newsletter[id_]
+        subscriber.setTitle(get(section, 'fullname'))
+        subscriber.setFullname(get(section, 'fullname'))
+        subscriber.setEmail(get(section, 'email'))
 
 def import_members(options):
     log('Importing members')
@@ -127,7 +146,8 @@ def folder_create(root, dirname, portal_type):
             constrainsMode = None
         if constrainsMode is not None:
             current.setConstrainTypesMode(0)
-        current.invokeFactory(portal_type, id=components[-1])
+
+        current.invokeFactory(PT_REPLACE_MAP.get(portal_type, portal_type), id=components[-1])
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
@@ -305,6 +325,8 @@ def import_content(options):
         new_obj = folder_create(options.plone, path, portal_type)
         if uid:
             update_content(options, new_obj, uid)
+        if portal_type == 'Newsletter':
+            import_plonegazette_subscribers(options, new_obj, uid) 
 
     transaction.savepoint()
 
