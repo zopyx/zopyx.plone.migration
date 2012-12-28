@@ -48,6 +48,20 @@ PT_REPLACEMENT = {
 def log(s):
     print >>sys.stdout, s
 
+def export_plonegazette(options, newsletter):
+    ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % newsletter.UID())
+    log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
+    fp = file(ini_fn, 'w')
+    for i, subs in enumerate(newsletter.subscribers.contentValues()):
+        if not subs.active:
+            continue
+        print >>fp, '[%d]' % i
+        print >>fp, 'id = %s' % subs.getId()
+        print >>fp, 'fullname = %s' % subs.fullname
+        print >>fp, 'email = %s' % subs.email
+        print >>fp, 'format = %s' % subs.format
+    fp.close()
+
 def export_groups(options):
 
     log('Exporting groups')
@@ -174,6 +188,9 @@ def _getRelativePath(obj, plone):
     obj_path = '/'.join(obj.getPhysicalPath())
     return obj_path.replace(plone_path + '/', '')
 
+def _getLayout(obj):
+    return obj.getLayout() or obj.getDefaultLayout()
+
 def export_content(options):
 
     log('Exporting content')
@@ -212,8 +229,11 @@ def export_content(options):
         obj_data = dict(schemadata=dict(), metadata=dict())        
         ext_filename = None
         for field in schema.fields():
-            name = field.getName()
-            value = field.get(obj)
+            name = field.getName()   
+            try:
+                value = field.get(obj)
+            except ValueError:
+                continue
             if name in ('image', 'file'):
                 ext_filename = os.path.join(export_dir, '%s.bin' % obj.UID())
                 extfp = file(ext_filename, 'wb')
@@ -238,6 +258,12 @@ def export_content(options):
         obj_data['metadata']['local_roles'] = obj.get_local_roles()
         obj_data['metadata']['parents'] = _getParents(obj)
         obj_data['metadata']['path'] = _getRelativePath(obj, options.plone)
+        obj_data['metadata']['layout'] = _getLayout(obj)
+
+        # content-type specific export code
+        if obj.portal_type == 'Newsletter':
+            export_plonegazette(options, obj)
+           
 
         if not stats.has_key(obj.portal_type):
             stats[obj.portal_type] = 0
@@ -259,6 +285,7 @@ def export_content(options):
         print >>fp, 'uid = %s' % obj.UID()
         print >>fp, 'related_items = %s' % related_items
         print >>fp, 'related_items_paths = %s' % related_items_paths
+        print >>fp, 'layout = %s' % obj_data['metadata']['layout']
         print >>fp
 
         # dump data as pickle
