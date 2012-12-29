@@ -36,6 +36,7 @@ import shutil
 import tempfile
 import cPickle
 import transaction
+from Testing.makerequest import makerequest
 from Products.CMFCore.WorkflowCore import WorkflowException
 from zope.component import getMultiAdapter
 from zope.component.interfaces import ComponentLookupError
@@ -134,11 +135,11 @@ def export_structure(options):
         children_uids = [_getUID(c) for c in children if _getUID(c)]
         context_uid = ''
         context_uid = _getUID(context)
+
         try:
-            default_page_helper = getMultiAdapter((context, options.app.REQUEST), name='default_page')
-            default_page = default_page_helper.getDefaultPage(context)
-        except ComponentLookupError:
-            default_page = ''
+            default_page = context.getDefaultPage() or ''
+        except AttributeError:
+            default_page = getattr(context.aq_inner.aq_base, 'default_page', '') 
 
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
@@ -351,6 +352,7 @@ def export_site(app, options):
     log('Export directory:  %s' % os.path.abspath(export_dir))
 
     app = Zope.app()
+    app = makerequest(app)
     uf = app.acl_users
     user = uf.getUser(options.username)
     if user is None:
@@ -359,7 +361,7 @@ def export_site(app, options):
 
     # inject some extra data instead creating our own datastructure
     options.export_directory = export_dir
-    options.plone = plone
+    options.plone = makerequest(plone)
 
     # The export show starts here
     export_groups(options)
