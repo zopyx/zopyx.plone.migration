@@ -136,17 +136,12 @@ def export_structure(options):
         context_uid = ''
         context_uid = _getUID(context)
 
-        try:
-            default_page = context.getDefaultPage() or ''
-        except AttributeError:
-            default_page = getattr(context.aq_inner.aq_base, 'default_page', '') 
-
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
         print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
-        print >>fp, 'default_page = %s' % default_page
+        print >>fp, 'default_page = %s' % _getDefaultPage(context)
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
         print >>fp
         for child in children:
@@ -206,6 +201,13 @@ def _getWFPolicy(obj):
     if wf_policy is None:
         return {}
     return wf_policy.__dict__
+
+def _getDefaultPage(obj):
+    try:
+        default_page = obj.getDefaultPage() or ''
+    except AttributeError:
+        default_page = getattr(obj.aq_inner.aq_base, 'default_page', '') 
+    return default_page
 
 
 def _getUID(obj):
@@ -289,6 +291,7 @@ def export_content(options):
         obj_data['metadata']['path'] = _getRelativePath(obj, options.plone)
         obj_data['metadata']['layout'] = _getLayout(obj)
         obj_data['metadata']['wf_policy'] = _getWFPolicy(obj)
+        obj_data['metadata']['default_page'] = _getDefaultPage(obj)
 
         # content-type specific export code
         if obj.portal_type == 'Newsletter':
@@ -316,6 +319,7 @@ def export_content(options):
         print >>fp, 'related_items = %s' % related_items
         print >>fp, 'related_items_paths = %s' % related_items_paths
         print >>fp, 'layout = %s' % obj_data['metadata']['layout']
+        print >>fp, 'default_page = %s' % obj_data['metadata']['default_page']
         print >>fp, 'wf_policy = %s' % obj_data['metadata']['wf_policy']
         print >>fp
 

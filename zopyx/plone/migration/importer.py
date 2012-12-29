@@ -396,7 +396,8 @@ def import_content(options):
             path = CP.get(section, 'path')
             obj = options.plone.restrictedTraverse(path,None)
             images = obj.getFolderContents({'portal_type' : 'Image'})
-            if len(images) == len(obj.contentValues()):
+            if len(images) >= 0 and len(images) == len(obj.contentValues()):
+                log('Setting galleryview on %s' % obj.absolute_url(1))
                 obj.selectViewTemplate('galleryview')
 
         # Flowplayer
@@ -406,7 +407,22 @@ def import_content(options):
             obj = options.plone.restrictedTraverse(path,None)
             basename, ext = os.path.splitext(id_)
             if ext.lower() in ('.mp3', '.mp4', '.wmv') and 'collective.flowplayer' in installed_products:
+                log('Setting flowplayer view on %s' % obj.absolute_url(1))
                 obj.selectViewTemplate('flowplayer')
+
+        # Default page
+        default_page = CP.get(section, 'default_page')
+        if default_page:
+            path = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path,None)
+            try:
+                child_ids = obj.objectIds()
+            except AttributeError:                
+                child_ids = []
+            if default_page in child_ids:
+                log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
+                obj.setDefaultPage(default_page)
+                obj.default_page = default_page
 
         # related items
         related_items_paths = CP.get(section, 'related_items_paths').split(',')
@@ -419,7 +435,9 @@ def import_content(options):
                     o = options.plone.restrictedTraverse(related_items_path, None)
                     if o is not None:
                         ref_objs.append(o)
-                obj.setRelatedItems(ref_objs)                                            
+                log('Setting related items on %s' % obj.absolute_url(1))
+                if ref_objs:
+                    obj.setRelatedItems(ref_objs)                                            
 
 
 def log(s):
