@@ -37,7 +37,8 @@ import tempfile
 import cPickle
 import transaction
 from Products.CMFCore.WorkflowCore import WorkflowException
-
+from zope.component import getMultiAdapter
+from zope.component.interfaces import ComponentLookupError
 
 IGNORED_TYPES = (
     'NewsletterTheme',
@@ -133,11 +134,18 @@ def export_structure(options):
         children_uids = [_getUID(c) for c in children if _getUID(c)]
         context_uid = ''
         context_uid = _getUID(context)
+        try:
+            default_page_helper = getMultiAdapter((context, options.app.REQUEST), name='default_page')
+            default_page = default_page_helper.getDefaultPage(context)
+        except ComponentLookupError:
+            default_page = ''
+
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
         print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
+        print >>fp, 'default_page = %s' % default_page
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
         print >>fp
         for child in children:
