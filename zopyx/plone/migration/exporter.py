@@ -200,7 +200,9 @@ def _getWFPolicy(obj):
     wf_policy = getattr(obj.aq_inner, '.wf_policy_config', None)
     if wf_policy is None:
         return {}
-    return wf_policy.__dict__
+    if wf_policy.workflow_policy_below or wf_policy.workflow_policy_in:
+        return wf_policy.__dict__
+    return {}
 
 def _getDefaultPage(obj):
     try:
@@ -221,6 +223,19 @@ def _getUID(obj):
     fake_uid = str(uuid.uuid4())
     obj.fake_uid = fake_uid
     return fake_uid
+
+def export_placeful_workflow(options):
+    if not 'portal_placeful_workflow' in options.plone.objectIds():
+        return
+
+    export_dir = os.path.join(options.export_directory, 'placeful_workflow')
+    os.mkdir(export_dir)
+    pwt = options.plone.portal_placeful_workflow
+    for id_ in pwt.objectIds():
+        zexp = pwt.manage_exportObject(id_, download=1)
+        zexp_name = os.path.join(export_dir, id_ + '.zexp')
+        file(zexp_name, 'wb').write(zexp)
+        log('Exported PlacefulWorkflow %s to %s' % (id_, zexp_name))
 
 def export_content(options):
 
@@ -370,6 +385,7 @@ def export_site(app, options):
     # The export show starts here
     export_groups(options)
     export_members(options)
+    export_placeful_workflow(options)
     export_structure(options)
     export_content(options)
 
