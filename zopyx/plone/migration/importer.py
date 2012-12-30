@@ -10,6 +10,7 @@ import glob
 import transaction
 import urllib2
 import cPickle
+import shutil
 from optparse import OptionParser
 from datetime import datetime
 from ConfigParser import ConfigParser
@@ -18,6 +19,7 @@ from DateTime.DateTime import DateTime
 from OFS.Folder import manage_addFolder
 from Testing.makerequest import makerequest
 from AccessControl.SecurityManagement import newSecurityManager
+from App.config import getConfiguration
 from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
@@ -64,6 +66,27 @@ def import_plonegazette_subscribers(options, newsletter, old_uid):
         subscriber.setTitle(get(section, 'fullname'))
         subscriber.setFullname(get(section, 'fullname'))
         subscriber.setEmail(get(section, 'email'))
+
+def import_placeful_workflow(options):
+
+    import_dir = os.path.join(options.input_directory, 'placeful_workflow')
+    if not os.path.exists(import_dir):
+        return
+    cfg = getConfiguration()
+    pwt = options.plone.portal_placeful_workflow
+    dest_dir = os.path.join(cfg.instancehome, 'import')
+    if not os.path.exists(dest_dir):
+        os.mkdir(dest_dir)
+    for zexp in os.listdir(import_dir):
+        zexp_id = zexp.replace('.zexp', '')
+        src = os.path.join(import_dir, zexp)
+        dest = os.path.join(dest_dir, zexp)
+        shutil.copy(src, dest)
+        log('Copied %s to %s' % (src, dest))
+        if zexp_id in pwt.objectIds():
+            pwt.manage_delObjects(zexp_id)
+        pwt.manage_importObject(zexp)
+        log('Imported %s' % zexp)
 
 def import_members(options):
     log('Importing members')
@@ -487,6 +510,7 @@ def import_plone(app, options):
     options.plone = plone
     import_members(options)
     import_groups(options)
+    import_placeful_workflow(options)
     import_content(options)
     return plone.absolute_url(1)
 
