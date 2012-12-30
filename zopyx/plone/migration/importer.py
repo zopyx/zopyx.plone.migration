@@ -434,7 +434,10 @@ def import_content(options):
                 obj.selectViewTemplate('flowplayer')
 
         # Default page
-        default_page = CP.get(section, 'default_page')
+        try:
+            default_page = CP.get(section, 'default_page')
+        except:
+            default_page = None
         if default_page:
             path = CP.get(section, 'path')
             obj = options.plone.restrictedTraverse(path,None)
