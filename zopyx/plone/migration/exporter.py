@@ -336,6 +336,8 @@ def export_content(options):
         print >>fp, 'layout = %s' % obj_data['metadata']['layout']
         print >>fp, 'default_page = %s' % obj_data['metadata']['default_page']
         print >>fp, 'wf_policy = %s' % obj_data['metadata']['wf_policy']
+        print >>fp, 'owner = %s' % obj_data['metadata']['owner']
+        print >>fp, 'creators = %s' % ','.join(obj_data['schemadata']['creators'])
         print >>fp
 
         # dump data as pickle
