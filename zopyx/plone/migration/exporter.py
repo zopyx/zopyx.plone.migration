@@ -36,7 +36,12 @@ import shutil
 import tempfile
 import cPickle
 import transaction
+
+from Acquisition import aq_base
+from Acquisition import aq_inner
+from Acquisition import aq_parent
 from Testing.makerequest import makerequest
+from OFS.interfaces import IOrderedContainer
 from Products.CMFCore.WorkflowCore import WorkflowException
 from zope.component import getMultiAdapter
 from zope.component.interfaces import ComponentLookupError
@@ -211,6 +216,15 @@ def _getDefaultPage(obj):
         default_page = getattr(obj.aq_inner.aq_base, 'default_page', '') 
     return default_page
 
+def _getPositionInParent(obj):
+
+    parent = aq_parent(aq_inner(obj))
+    ordered = IOrderedContainer(parent, None)
+    if ordered is not None:
+        pos = ordered.getObjectPosition(obj.getId())
+    else:
+        pos = 0
+    return pos
 
 def _getUID(obj):
     try:
@@ -307,6 +321,7 @@ def export_content(options):
         obj_data['metadata']['layout'] = _getLayout(obj)
         obj_data['metadata']['wf_policy'] = _getWFPolicy(obj)
         obj_data['metadata']['default_page'] = _getDefaultPage(obj)
+        obj_data['metadata']['position_parent'] = _getPositionInParent(obj)
 
         # content-type specific export code
         if obj.portal_type == 'Newsletter':
@@ -338,6 +353,7 @@ def export_content(options):
         print >>fp, 'wf_policy = %s' % obj_data['metadata']['wf_policy']
         print >>fp, 'owner = %s' % obj_data['metadata']['owner']
         print >>fp, 'creators = %s' % ','.join(obj_data['schemadata']['creators'])
+        print >>fp, 'position_parent = %d' % obj_data['metadata']['position_parent']
         print >>fp
 
         # dump data as pickle
