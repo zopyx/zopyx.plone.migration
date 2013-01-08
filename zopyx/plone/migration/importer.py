@@ -310,8 +310,9 @@ def create_new_obj(plone, folder, old_uid):
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['schemadata']['id']
     path_ = obj_data['metadata']['path']
+    portal_type_ = obj_data['metadata']['portal_type']
     candidate = plone.restrictedTraverse(path_, None)
-    if candidate is None:
+    if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
             return
         try:
@@ -397,6 +398,7 @@ def import_content(options):
             if CP.get(section, 'portal_type') in IGNORED_TYPES:
                 continue
             current = options.plone.restrictedTraverse(path)
+
         for uid in uids:
             create_new_obj(options.plone, current, uid)
         log('--> %d children created' % len(uids))
