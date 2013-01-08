@@ -252,7 +252,7 @@ def export_content(options):
     stats = dict()
     num_brains = len(brains)
     for i, brain in enumerate(brains):
-            
+
         if options.verbose:
             log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
         try:
@@ -291,7 +291,7 @@ def export_content(options):
                 extfp.close()
                 value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
             elif name == 'relatedItems':
-                value = [_getUID(obj) for obj in value]
+                value = [_getUID(rel_item) for rel_item in value]
             obj_data['schemadata'][name] = value
 
         obj_data['metadata']['id'] = obj.getId()
