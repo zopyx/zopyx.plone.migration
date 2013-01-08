@@ -148,6 +148,8 @@ def export_structure(options):
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
         print >>fp, 'default_page = %s' % _getDefaultPage(context)
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
+        print >>fp, 'parent_position = %d' % _getPositionInParent(context)
+        print >>fp, 'local_roles_block = %d' % _getLocalRolesBlock(context)
         print >>fp
         for child in children:
             if getattr(child.aq_inner, 'isPrincipiaFolderish', 0):
@@ -157,6 +159,10 @@ def export_structure(options):
     fp = file(os.path.join(options.export_directory, 'structure.ini'), 'w')
     _export_structure(fp, options.plone, newCounter())
     fp.close()    
+
+def _getLocalRolesBlock(obj):
+    val = getattr(obj, '__ac_local_roles_block__', 0) or 0 
+    return int(val)
 
 def _getReviewState(obj):
     try:
@@ -322,6 +328,7 @@ def export_content(options):
         obj_data['metadata']['wf_policy'] = _getWFPolicy(obj)
         obj_data['metadata']['default_page'] = _getDefaultPage(obj)
         obj_data['metadata']['position_parent'] = _getPositionInParent(obj)
+        obj_data['metadata']['local_roles_block'] = _getLocalRolesBlock(obj)
 
         # content-type specific export code
         if obj.portal_type == 'Newsletter':
@@ -354,6 +361,7 @@ def export_content(options):
         print >>fp, 'owner = %s' % obj_data['metadata']['owner']
         print >>fp, 'creators = %s' % ','.join(obj_data['schemadata']['creators'])
         print >>fp, 'position_parent = %d' % obj_data['metadata']['position_parent']
+        print >>fp, 'local_roles_block = %d' % obj_data['metadata']['local_roles_block'] 
         print >>fp
 
         # dump data as pickle

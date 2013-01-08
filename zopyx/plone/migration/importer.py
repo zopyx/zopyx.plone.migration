@@ -213,6 +213,16 @@ def setExcludeFromNav(obj):
     if obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
         obj.setExcludeFromNav(True)
 
+def setObjectPosition(obj, position):
+    try:
+        obj.aq_parent.moveObjectToPosition(obj.getId(), position)
+    except ValueError:
+        return
+
+def setLocalRolesBlock(obj, value):
+    if value == 0:
+        obj.__ac_local_roles_block__ = value
+
 #############################################################################################################
 # Taken from http://glenfant.wordpress.com/2010/04/02/changing-workflow-state-quickly-on-cmfplone-content/
 # and slightly adjusted
@@ -293,6 +303,8 @@ def update_content(options, new_obj, old_uid):
             except Exception, e:
                 log('Could not update field %s of %s (error=%s)' % (field.getName(), new_obj.absolute_url(), e))
     
+    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
+    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
@@ -341,6 +353,8 @@ def create_new_obj(plone, folder, old_uid):
             log('Unable to set %s for %s (%s)' % (k, new_obj.absolute_url(1), e))
             
 
+    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
+    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
