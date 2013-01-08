@@ -186,7 +186,8 @@ def changeOwner(obj, owner):
         obj.plone_utils.changeOwnershipOf(obj, owner)
     except KeyError:
         obj.plone_utils.changeOwnershipOf(obj, 'admin')
-    obj.setCreators([owner])
+    if owner != 'Anonymous User':
+        obj.setCreators([owner])
 
 def setLocalRoles(obj, local_roles):
     if not local_roles:
