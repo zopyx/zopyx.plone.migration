@@ -422,13 +422,37 @@ def import_content(options):
 
 
     # Now using content.ini for post migration fix-up
+    structure_ini = os.path.join(options.input_directory, 'structure.ini')
+    CP = ConfigParser()
+    CP.read([structure_ini])
+    get = CP.get
+    sections = CP.sections()
+    log('Post migration fix-up (structure.ini)')
+    for i, section in enumerate(sections):
+        # Default page
+        try:
+            default_page = CP.get(section, 'default_page')
+        except:
+            default_page = None
+        if default_page:
+            path = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path,None)
+            try:
+                child_ids = obj.objectIds()
+            except AttributeError:                
+                child_ids = []
+            if default_page in child_ids:
+                log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
+                obj.setDefaultPage(default_page)
+                obj.default_page = default_page
+
+
     content_ini = os.path.join(options.input_directory, 'content.ini')
     CP = ConfigParser()
     CP.read([content_ini])
     get = CP.get
-
     sections = CP.sections()
-    log('Post migration fix-up')
+    log('Post migration fix-up (content.ini)')
     for i, section in enumerate(sections):
 
         # folder album view
