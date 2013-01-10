@@ -220,8 +220,8 @@ def setObjectPosition(obj, position):
         return
 
 def setLocalRolesBlock(obj, value):
-    if value == 0:
-        obj.__ac_local_roles_block__ = value
+    obj.__ac_local_roles_block__ = value
+    obj.reindexObjectSecurity()
 
 #############################################################################################################
 # Taken from http://glenfant.wordpress.com/2010/04/02/changing-workflow-state-quickly-on-cmfplone-content/
