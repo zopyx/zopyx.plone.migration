@@ -621,8 +621,7 @@ def import_site(options):
     log('done')
     log(url)
 
-
-if __name__ == '__main__':
+def main():
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
@@ -633,4 +632,6 @@ if __name__ == '__main__':
     options, args = parser.parse_args()
     import_site(options)
 
+if __name__ == '__main__':
+    main()
 
