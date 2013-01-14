@@ -11,6 +11,7 @@ import transaction
 import urllib2
 import cPickle
 import shutil
+import lxml.html
 from optparse import OptionParser
 from datetime import datetime
 from ConfigParser import ConfigParser
@@ -209,8 +210,12 @@ def setWFPolicy(obj, wf_policy):
     setattr(obj, WorkflowPolicyConfig_id, i)
 
 
-def setExcludeFromNav(obj):
-    if obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
+def setExcludeFromNav(obj, options):
+    """ Force exclude from navigation for certain portal_types
+        in the Plone root only.
+    """
+    if obj.aq_parent.getId() == options.plone.getId() and \
+       obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
         obj.setExcludeFromNav(True)
 
 def setObjectPosition(obj, position):
@@ -222,6 +227,46 @@ def setObjectPosition(obj, position):
 def setLocalRolesBlock(obj, value):
     obj.__ac_local_roles_block__ = value
     obj.reindexObjectSecurity()
+
+def fix_resolve_uids(obj, options):
+
+    def xpath_query(node_names):
+        if not isinstance(node_names, (list, tuple)):
+            raise TypeError('"node_names" must be a list or tuple (not %s)' % type(node_names))
+        return './/*[%s]' % ' or '.join(['name()="%s"' % name for name in node_names])
+
+    html = obj.getRawText()
+    if not isinstance(html, unicode):
+        html = unicode(html, 'utf-8')
+    root = lxml.html.fromstring(html)
+
+    for node in root.xpath(xpath_query(('img', 'a'))):
+        url = ''
+        if node.tag == 'img':
+            url = node.attrib.get('src', '')
+        elif node.tag == 'a':
+            url = node.attrib.get('href', '')
+
+        if url.startswith('resolveuid'):
+            old_uid = url.split('/')[1]
+            pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+            if os.path.exists(pickle_filename):
+                old_data = cPickle.load(open(pickle_filename))
+                old_path = old_data['metadata']['path']
+                new_obj = obj.restrictedTraverse(old_path, None)
+                if new_obj is not None:
+                    new_uid = new_obj.UID()
+                    url_f = url.split('/')
+                    url_f[1] = new_uid
+                    url = '/'.join(url_f)
+                    if node.tag == 'img':
+                        node.attrib['src'] = url
+                    elif node.tag == 'a':
+                        node.attrib['href'] = url
+
+    html = lxml.html.tostring(root, encoding=unicode)
+    obj.setText(html)
+
 
 #############################################################################################################
 # Taken from http://glenfant.wordpress.com/2010/04/02/changing-workflow-state-quickly-on-cmfplone-content/
@@ -302,7 +347,7 @@ def update_content(options, new_obj, old_uid):
                 field.set(new_obj, v)
             except Exception, e:
                 log('Could not update field %s of %s (error=%s)' % (field.getName(), new_obj.absolute_url(), e))
-    
+
     setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
@@ -310,7 +355,7 @@ def update_content(options, new_obj, old_uid):
     setReviewState(new_obj, obj_data['metadata']['review_state'])
     setLayout(new_obj, obj_data['metadata']['layout'])
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
-    setExcludeFromNav(new_obj)
+    setExcludeFromNav(new_obj, options)
     new_obj.reindexObject()
 
 def create_new_obj(plone, folder, old_uid):
@@ -352,7 +397,6 @@ def create_new_obj(plone, folder, old_uid):
         except Exception, e:
             log('Unable to set %s for %s (%s)' % (k, new_obj.absolute_url(1), e))
             
-
     setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
@@ -360,7 +404,7 @@ def create_new_obj(plone, folder, old_uid):
     setReviewState(new_obj, obj_data['metadata']['review_state'])
     setLayout(new_obj, obj_data['metadata']['layout'])
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
-    setExcludeFromNav(new_obj)
+    setExcludeFromNav(new_obj, options)
     new_obj.reindexObject()
 
 
@@ -419,7 +463,6 @@ def import_content(options):
 
         if i % 10 == 0:
             transaction.savepoint()
-
 
     # Now using content.ini for post migration fix-up
     structure_ini = os.path.join(options.input_directory, 'structure.ini')
@@ -510,6 +553,11 @@ def import_content(options):
 def log(s):
     print >>sys.stdout, s
 
+
+def fixup_uids(options):
+    for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item')}):
+        fix_resolve_uids(brain.getObject(), options)
+
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
     app = makerequest(app)
     dest = app
@@ -556,6 +604,7 @@ def import_plone(app, options):
     import_groups(options)
     import_placeful_workflow(options)
     import_content(options)
+    fixup_uids(options)
     return plone.absolute_url(1)
 
 def import_site(options):
