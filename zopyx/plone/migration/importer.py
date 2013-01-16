@@ -101,6 +101,8 @@ def import_members(options):
 
     count = 0
     errors = list()
+    pr.addMember('dummyadmin', 'dummyadmin', roles=('Member',))
+
     for section in CP.sections():
         username = get(section, 'username')
         if options.verbose:
@@ -148,8 +150,9 @@ def import_groups(options):
         if options.verbose:
             log('-> %s' % grp_id)
 
-        roles = get(section, 'roles').split('/')
+        roles = get(section, 'roles').split(',')
         groups_tool.addGroup(grp_id)    
+        groups_tool.editGroup(grp_id, roles=roles)
         grp = groups_tool.getGroupById(grp_id)
         for member in members:
             grp.addMember(member)
@@ -186,7 +189,7 @@ def changeOwner(obj, owner):
     try:
         obj.plone_utils.changeOwnershipOf(obj, owner)
     except KeyError:
-        obj.plone_utils.changeOwnershipOf(obj, 'admin')
+        obj.plone_utils.changeOwnershipOf(obj, 'dummyadmin')
     if owner != 'Anonymous User':
         obj.setCreators([owner])
 
@@ -503,7 +506,7 @@ def import_content(options):
             path = CP.get(section, 'path')
             obj = options.plone.restrictedTraverse(path,None)
             images = obj.getFolderContents({'portal_type' : 'Image'})
-            if len(images) >= 0 and len(images) == len(obj.contentValues()):
+            if len(images) > 0 and len(images) == len(obj.contentValues()):
                 log('Setting galleryview on %s' % obj.absolute_url(1))
                 obj.selectViewTemplate('galleryview')
 
