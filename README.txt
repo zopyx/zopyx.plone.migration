@@ -33,13 +33,19 @@ be running Plone through ZEO.
 
 The exporter will export the following items from a Plone site:
 
- - members (member name, member password, global member roles)
- - groups (group name, group members, global group roles)
- - structure of the site (folder structure including local roles
-   and review state)
- - all Archetypes-based content with all metadata of a content item
-   that has been defined through an Archetype schema (plus
-   some extra data like review state, local roles, related items)
+- members (member name, member password, global member roles)
+- groups (group name, group members, global group roles)
+- structure of the site (folder structure including local roles
+  and review state)
+- all Archetypes-based content with all metadata of a content item
+  that has been defined through an Archetype schema (plus
+  some extra data like review state, local roles, related items)
+- workflow states (also deals with PlaceFulworkflow)
+- local roles (including blocking/inheritance of local roles)
+- object position in parent
+- related items
+- default pages
+
 
 Usage::
 

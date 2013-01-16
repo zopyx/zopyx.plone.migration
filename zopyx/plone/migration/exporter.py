@@ -1,6 +1,6 @@
 ################################################################
 # Poor men's Plone export
-# (C) 2012, ZOPYX Ltd, D-72074 Tuebingen
+# (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
 ###################################################################################
@@ -417,8 +417,8 @@ def export_site(app, options):
 
     log('Export done...releasing memory und Tschuessn')
 
-if __name__ == '__main__':
 
+def main():
     from optparse import OptionParser
     from AccessControl.SecurityManagement import newSecurityManager
     import Zope
@@ -435,3 +435,6 @@ if __name__ == '__main__':
     options.app = app
     export_site(app, options)
     transaction.commit()
+
+if __name__ == '__main__':
+    main((
