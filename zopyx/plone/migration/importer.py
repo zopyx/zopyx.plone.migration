@@ -74,7 +74,10 @@ def import_placeful_workflow(options):
     if not os.path.exists(import_dir):
         return
     cfg = getConfiguration()
-    pwt = options.plone.portal_placeful_workflow
+    try:
+        pwt = options.plone.portal_placeful_workflow
+    except AttributeError:
+        return
     dest_dir = os.path.join(cfg.instancehome, 'import')
     if not os.path.exists(dest_dir):
         os.mkdir(dest_dir)
@@ -241,7 +244,10 @@ def fix_resolve_uids(obj, options):
     html = obj.getRawText()
     if not isinstance(html, unicode):
         html = unicode(html, 'utf-8')
-    root = lxml.html.fromstring(html)
+    try:
+        root = lxml.html.fromstring(html)
+    except:
+        return
 
     for node in root.xpath(xpath_query(('img', 'a'))):
         url = ''
@@ -361,9 +367,10 @@ def update_content(options, new_obj, old_uid):
     setExcludeFromNav(new_obj, options)
     new_obj.reindexObject()
 
-def create_new_obj(plone, folder, old_uid):
+def create_new_obj(options, folder, old_uid):
     if not old_uid:
         return
+    
     pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
     if not os.path.exists(pickle_filename):
         return
@@ -371,7 +378,7 @@ def create_new_obj(plone, folder, old_uid):
     id_ = obj_data['schemadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
-    candidate = plone.restrictedTraverse(path_, None)
+    candidate = options.plone.restrictedTraverse(path_, None)
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
             return
@@ -461,7 +468,7 @@ def import_content(options):
             current = options.plone.restrictedTraverse(path)
 
         for uid in uids:
-            create_new_obj(options.plone, current, uid)
+            create_new_obj(options, current, uid)
         log('--> %d children created' % len(uids))
 
         if i % 10 == 0:
