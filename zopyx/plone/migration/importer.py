@@ -115,7 +115,7 @@ def import_members(options):
         if username.startswith('group_'):
             continue
         
-        roles = get(section, 'roles').split('/') + ['Member']
+        roles = get(section, 'roles').split(',') + ['Member']
     
         try:
             pr.addMember(username, 
