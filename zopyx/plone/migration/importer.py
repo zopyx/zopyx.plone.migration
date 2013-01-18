@@ -234,6 +234,12 @@ def setObjectPosition(obj, position):
     except:
         return
 
+def setContentType(obj, content_type):
+    obj.setContentType(content_type)
+    obj.content_type = content_type
+    if obj.portal_type == 'File':
+        obj.__annotations__['Archetypes.storage.AnnotationStorage-file'].content_type = content_type
+
 def setLocalRolesBlock(obj, value):
     obj.__ac_local_roles_block__ = value
     obj.reindexObjectSecurity()
@@ -369,6 +375,7 @@ def update_content(options, new_obj, old_uid):
     setLayout(new_obj, obj_data['metadata']['layout'])
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
+    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
 def create_new_obj(options, folder, old_uid):
@@ -421,6 +428,7 @@ def create_new_obj(options, folder, old_uid):
     setLayout(new_obj, obj_data['metadata']['layout'])
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
+    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
 
@@ -571,7 +579,7 @@ def log(s):
 
 
 def fixup_uids(options):
-    for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item')}):
+    for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item', 'ENLIssue')}):
         fix_resolve_uids(brain.getObject(), options)
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):

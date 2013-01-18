@@ -43,6 +43,7 @@ from Acquisition import aq_parent
 from Testing.makerequest import makerequest
 from OFS.interfaces import IOrderedContainer
 from Products.CMFCore.WorkflowCore import WorkflowException
+from AccessControl.SecurityManagement import newSecurityManager
 from zope.component import getMultiAdapter
 from zope.component.interfaces import ComponentLookupError
 
@@ -314,6 +315,9 @@ def export_content(options):
                 value = [_getUID(rel_item) for rel_item in value]
             obj_data['schemadata'][name] = value
 
+        if obj.portal_type == 'Newsletter':
+            obj_data['schemadata']['text'] = obj.text
+
         obj_data['metadata']['id'] = obj.getId()
         obj_data['metadata']['uid'] = _getUID(obj)
         obj_data['metadata']['portal_type'] = PT_REPLACEMENT.get(obj.portal_type, obj.portal_type)
@@ -396,7 +400,7 @@ def export_site(app, options):
     log('Exporting Plone site: %s' % options.path)
     log('Export directory:  %s' % os.path.abspath(export_dir))
 
-    app = Zope.app()
+#    app = Zope.app()
     app = makerequest(app)
     uf = app.acl_users
     user = uf.getUser(options.username)
@@ -437,4 +441,4 @@ def main():
     transaction.commit()
 
 if __name__ == '__main__':
-    main((
+    main()
