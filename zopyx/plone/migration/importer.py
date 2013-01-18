@@ -32,8 +32,8 @@ IGNORED_TYPES = (
      'Topic', 
 #    'Ploneboard', 
 #    'PloneboardForum', 
-    'NewsletterTheme', 
-#'Newsletter', 
+#    'NewsletterTheme', 
+#    'Newsletter', 
     'Section', 
     'NewsletterBTree', 
     'NewsletterReference', 
@@ -49,24 +49,28 @@ IGNORED_TYPES = (
 )   
 
 PT_REPLACE_MAP = {
-    'Newsletter' : 'EasyNewsletter',
+    'NewsletterTheme' : 'EasyNewsletter',
+    'Newsletter' : 'ENLIssue',
     'GMap' : 'GeoLocation',
 }
 
 def import_plonegazette_subscribers(options, newsletter, old_uid):
     """ Import PloneGazette subsribers into a new EasyNewsletter instance """
 
+    log('Importing subscribers %s' % newsletter.absolute_url(1))
     subscribers_ini = os.path.join(options.input_directory, '%s_plonegazette_subscribers' % old_uid)
     CP = ConfigParser()
     CP.read([subscribers_ini])
     get = CP.get
+    parent = newsletter.aq_parent
     for section in CP.sections():
         id_ = get(section, 'id')
-        newsletter.invokeFactory('ENLSubscriber', id=id_)
-        subscriber = newsletter[id_]
-        subscriber.setTitle(get(section, 'fullname'))
-        subscriber.setFullname(get(section, 'fullname'))
-        subscriber.setEmail(get(section, 'email'))
+        if not id_ in parent.objectIds():
+            parent.invokeFactory('ENLSubscriber', id=id_)
+            subscriber = parent[id_]
+            subscriber.setTitle(get(section, 'fullname'))
+            subscriber.setFullname(get(section, 'fullname'))
+            subscriber.setEmail(get(section, 'email'))
 
 def import_placeful_workflow(options):
 
@@ -227,7 +231,7 @@ def setExcludeFromNav(obj, options):
 def setObjectPosition(obj, position):
     try:
         obj.aq_parent.moveObjectToPosition(obj.getId(), position)
-    except ValueError:
+    except:
         return
 
 def setLocalRolesBlock(obj, value):
@@ -388,9 +392,11 @@ def create_new_obj(options, folder, old_uid):
             constrainsMode = None
         if constrainsMode is not None:
             folder.setConstrainTypesMode(0)
-        folder.invokeFactory(obj_data['metadata']['portal_type'], id=id_)
-        if constrainsMode is not None:
-            folder.setConstrainTypesMode(constrainsMode)
+        pt = obj_data['metadata']['portal_type']
+        if not id_ in folder.objectIds():
+            folder.invokeFactory(PT_REPLACE_MAP.get(pt, pt), id=id_)
+            if constrainsMode is not None:
+                folder.setConstrainTypesMode(constrainsMode)
         new_obj = folder[id_]
     else:
         new_obj = candidate
