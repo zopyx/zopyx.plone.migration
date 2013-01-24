@@ -192,6 +192,16 @@ def folder_create(root, dirname, portal_type):
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
 
+def myRestrictedTraverse(obj, path):
+   """ traversal w/o acquisition """
+   current = obj
+   for p in path.split('/'):
+       if p in current.objectIds():
+            current = current[p]
+       else:
+            return None
+   return current
+
 def changeOwner(obj, owner):
     try:
         obj.plone_utils.changeOwnershipOf(obj, owner)
@@ -238,7 +248,8 @@ def setContentType(obj, content_type):
     obj.setContentType(content_type)
     obj.content_type = content_type
     if obj.portal_type == 'File':
-        obj.__annotations__['Archetypes.storage.AnnotationStorage-file'].content_type = content_type
+        obj.__annotations__['Archetypes.storage.AnnotationStorage-file'].setContentType(content_type)
+        obj.__annotations__['Archetypes.storage.AnnotationStorage-file'].setFilename(obj.getId())
 
 def setLocalRolesBlock(obj, value):
     obj.__ac_local_roles_block__ = value
@@ -387,9 +398,11 @@ def create_new_obj(options, folder, old_uid):
         return
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['schemadata']['id']
+
+
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
-    candidate = options.plone.restrictedTraverse(path_, None)
+    candidate = myRestrictedTraverse(options.plone, path_)
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
             return
@@ -407,6 +420,7 @@ def create_new_obj(options, folder, old_uid):
         new_obj = folder[id_]
     else:
         new_obj = candidate
+
     for k,v in obj_data['schemadata'].items():
         if k in IGNORED_FIELDS:
             continue
