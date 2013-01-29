@@ -62,14 +62,24 @@ def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
     fp = file(ini_fn, 'w')
-    for i, subs in enumerate(newsletter.subscribers.contentValues()):
-        if not subs.active:
-            continue
-        print >>fp, '[%d]' % i
-        print >>fp, 'id = %s' % subs.getId()
-        print >>fp, 'fullname = %s' % subs.fullname
-        print >>fp, 'email = %s' % subs.email
-        print >>fp, 'format = %s' % subs.format
+    if 'subscribers' in newsletter.objectIds():
+        for i, subs in enumerate(newsletter.subscribers.contentValues()):
+            if not subs.active:
+                continue
+            print >>fp, '[%d]' % i
+            print >>fp, 'id = %s' % subs.getId()
+            print >>fp, 'fullname = %s' % subs.fullname
+            print >>fp, 'email = %s' % subs.email
+            print >>fp, 'format = %s' % subs.format
+    else:
+        for i, subs in enumerate(newsletter.aq_parent.contentValues('Subscriber')):
+            if not subs.active:
+                continue
+            print >>fp, '[%d]' % i
+            print >>fp, 'id = %s' % subs.getId()
+            print >>fp, 'fullname = %s' % subs.Title()
+            print >>fp, 'email = %s' % subs.Title()
+            print >>fp, 'format = %s' % subs.format.lower()
     fp.close()
 
 def export_groups(options):
@@ -273,7 +283,6 @@ def export_content(options):
     stats = dict()
     num_brains = len(brains)
     for i, brain in enumerate(brains):
-
         if options.verbose:
             log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
         try:
@@ -284,36 +293,43 @@ def export_content(options):
             except Exception, e:
                 errors.append(dict(path=brain.getPath(), error=e))
                 continue
+
+        # content-type specific export code
+        if obj.portal_type == 'Newsletter':
+            export_plonegazette(options, obj)
+           
             
         try:
             schema = obj.Schema()
         except AttributeError:
             errors.append(dict(path=brain.getPath(), error='no schema'))
-            continue
+            schema = None
+         
         if obj.portal_type in IGNORED_TYPES:
             continue
 
         obj_data = dict(schemadata=dict(), metadata=dict())        
-        ext_filename = None
-        for field in schema.fields():
-            name = field.getName()   
-            try:
-                value = field.get(obj)
-            except ValueError:
-                continue
-            if name in ('image', 'file'):
-                ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
-                extfp = file(ext_filename, 'wb')
+        if schema:
+            ext_filename = None
+            for field in schema.fields():
+                name = field.getName()   
                 try:
-                    data = str(value.data)
-                except:
-                    data = value
-                extfp.write(data)
-                extfp.close()
-                value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
-            elif name == 'relatedItems':
-                value = [_getUID(rel_item) for rel_item in value]
-            obj_data['schemadata'][name] = value
+                    value = field.get(obj)
+                except ValueError:
+                    continue
+                if name in ('image', 'file'):
+                    ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
+                    extfp = file(ext_filename, 'wb')
+                    try:
+                        data = str(value.data)
+                    except:
+                        data = value
+                    extfp.write(data)
+                    extfp.close()
+                    value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
+                elif name == 'relatedItems':
+                    value = [_getUID(rel_item) for rel_item in value]
+                obj_data['schemadata'][name] = value
 
         if obj.portal_type == 'Newsletter':
             obj_data['schemadata']['text'] = obj.text
@@ -333,11 +349,6 @@ def export_content(options):
         obj_data['metadata']['default_page'] = _getDefaultPage(obj)
         obj_data['metadata']['position_parent'] = _getPositionInParent(obj)
         obj_data['metadata']['local_roles_block'] = _getLocalRolesBlock(obj)
-
-        # content-type specific export code
-        if obj.portal_type == 'Newsletter':
-            export_plonegazette(options, obj)
-           
 
         if not stats.has_key(obj.portal_type):
             stats[obj.portal_type] = 0
@@ -363,7 +374,7 @@ def export_content(options):
         print >>fp, 'default_page = %s' % obj_data['metadata']['default_page']
         print >>fp, 'wf_policy = %s' % obj_data['metadata']['wf_policy']
         print >>fp, 'owner = %s' % obj_data['metadata']['owner']
-        print >>fp, 'creators = %s' % ','.join(obj_data['schemadata']['creators'])
+        print >>fp, 'creators = %s' % ','.join(obj_data['schemadata'].get('creators', ''))
         print >>fp, 'position_parent = %d' % obj_data['metadata']['position_parent']
         print >>fp, 'local_roles_block = %d' % obj_data['metadata']['local_roles_block'] 
         print >>fp
