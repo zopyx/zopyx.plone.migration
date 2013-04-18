@@ -34,6 +34,7 @@ import uuid
 import gc
 import shutil
 import tempfile
+import sys
 import cPickle
 import transaction
 
