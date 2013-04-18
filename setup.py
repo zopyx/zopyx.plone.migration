@@ -26,6 +26,7 @@ setup(name='zopyx.plone.migration',
       install_requires=[
           'setuptools',
           'lxml',
+          'uuid'
           # -*- Extra requirements: -*-
       ],
       entry_points="""
