@@ -72,7 +72,7 @@ def export_plonegazette(options, newsletter):
             print >>fp, 'email = %s' % subs.email
             print >>fp, 'format = %s' % subs.format
     else:
-        for i, subs in enumerate(newsletter.aq_parent.contentValues('Subscriber')):
+        for i, subs in enumerate([sub for sub in newsletter.aq_parent.contentValues() if sub.portal_type =='Subscriber']):
             if not subs.active:
                 continue
             print >>fp, '[%d]' % i
