@@ -397,9 +397,7 @@ def create_new_obj(options, folder, old_uid):
     if not os.path.exists(pickle_filename):
         return
     obj_data = cPickle.load(file(pickle_filename))
-    id_ = obj_data['schemadata']['id']
-
-
+    id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
