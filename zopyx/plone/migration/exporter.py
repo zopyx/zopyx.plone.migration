@@ -62,6 +62,7 @@ def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
     fp = file(ini_fn, 'w')
+    import pdb; pdb.set_trace()	
     if 'subscribers' in newsletter.objectIds():
         sfolder = newsletter.subscribers
     elif 'subscribers' in newsletter.aq_parent.objectIds():
@@ -293,10 +294,9 @@ def export_content(options):
                 continue
 
         # content-type specific export code
-        if obj.portal_type == 'Newsletter':
+        if obj.portal_type in ('Newsletter', 'NewsletterTheme'):
             export_plonegazette(options, obj)
-           
-            
+
         try:
             schema = obj.Schema()
         except AttributeError:
