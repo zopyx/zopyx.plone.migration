@@ -50,6 +50,7 @@ IGNORED_TYPES = (
 
 PT_REPLACE_MAP = {
     'NewsletterTheme' : 'EasyNewsletter',
+#    'NewsletterTheme' : 'ENLIssue',
     'Newsletter' : 'ENLIssue',
     'GMap' : 'GeoLocation',
 }
@@ -62,7 +63,10 @@ def import_plonegazette_subscribers(options, newsletter, old_uid):
     CP = ConfigParser()
     CP.read([subscribers_ini])
     get = CP.get
-    parent = newsletter.aq_parent
+    if newsletter.portal_type == 'EasyNewsletter':
+        parent = newsletter
+    else:
+        parent = newsletter.aq_parent
     for section in CP.sections():
         id_ = get(section, 'id')
         if not id_ in parent.objectIds():
@@ -474,7 +478,7 @@ def import_content(options):
         new_obj = folder_create(options.plone, path, portal_type)
         if uid:
             update_content(options, new_obj, uid)
-        if portal_type == 'Newsletter':
+        if portal_type in ('Newsletter', 'NewsletterTheme'):
             import_plonegazette_subscribers(options, new_obj, uid) 
 
     transaction.savepoint()
