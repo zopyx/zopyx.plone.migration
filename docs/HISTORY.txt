@@ -1,6 +1,10 @@
 Changes
 =======
 
+0.2.8 (08.07.2013)
+------------------
+- PloneGazette related fixes and workarounds
+
 0.2.0 (14.01.2013)
 ------------------
 - various fixes
