@@ -34,6 +34,7 @@ import uuid
 import gc
 import shutil
 import tempfile
+import sys
 import cPickle
 import transaction
 
@@ -437,7 +438,7 @@ def main():
     from AccessControl.SecurityManagement import newSecurityManager
     import Zope
     gc.enable()
-
+    app = Zope.app()
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-p', '--path', dest='path', default='')
