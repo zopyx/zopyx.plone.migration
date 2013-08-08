@@ -1,12 +1,15 @@
 Changes
 =======
 
-0.2.8-dev (unreleased)
+0.2.9-dev (unreleased)
 ----------------------
 - Various fixes for export while using with python 2.4 and Plone 2.5 
   [ichim-david]
 
-- various fixes
+0.2.8 (08.07.2013)
+------------------
+- PloneGazette related fixes and workarounds
+
 0.2.0 (14.01.2013)
 ------------------
 - various fixes

@@ -63,25 +63,24 @@ def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
     fp = file(ini_fn, 'w')
+    import pdb; pdb.set_trace()	
     if 'subscribers' in newsletter.objectIds():
-        for i, subs in enumerate(newsletter.subscribers.contentValues()):
-            if not subs.active:
-                continue
-            print >>fp, '[%d]' % i
-            print >>fp, 'id = %s' % subs.getId()
-            print >>fp, 'fullname = %s' % subs.fullname
-            print >>fp, 'email = %s' % subs.email
-            print >>fp, 'format = %s' % subs.format
+        sfolder = newsletter.subscribers
+    elif 'subscribers' in newsletter.aq_parent.objectIds():
+        sfolder = newsletter.aq_parent.subscribers
     else:
-        for i, subs in enumerate(newsletter.aq_parent.contentValues('Subscriber')):
-            if not subs.active:
-                continue
-            print >>fp, '[%d]' % i
-            print >>fp, 'id = %s' % subs.getId()
-            print >>fp, 'fullname = %s' % subs.Title()
-            print >>fp, 'email = %s' % subs.Title()
-            print >>fp, 'format = %s' % subs.format.lower()
+        sfolder = newsletter.aq_parent
+                           
+    for i, subs in enumerate([sub for sub in sfolder.contentValues() if sub.portal_type =='Subscriber']):
+        if not subs.active:
+            continue
+        print >>fp, '[%d]' % i
+        print >>fp, 'id = %s' % subs.getId()
+        print >>fp, 'fullname = %s' % subs.Title()
+        print >>fp, 'email = %s' % subs.Title()
+        print >>fp, 'format = %s' % subs.format.lower()
     fp.close()
+    log('Exported %d subscribers' % i)
 
 def export_groups(options):
 
@@ -296,10 +295,9 @@ def export_content(options):
                 continue
 
         # content-type specific export code
-        if obj.portal_type == 'Newsletter':
+        if obj.portal_type in ('Newsletter', 'NewsletterTheme'):
             export_plonegazette(options, obj)
-           
-            
+
         try:
             schema = obj.Schema()
         except AttributeError:

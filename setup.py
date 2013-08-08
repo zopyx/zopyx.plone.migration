@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import os
 
-version = '0.2.8-dev'
+version = '0.2.9-dev'
 
 setup(name='zopyx.plone.migration',
       version=version,
