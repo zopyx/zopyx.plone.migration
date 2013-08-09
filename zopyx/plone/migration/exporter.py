@@ -344,8 +344,8 @@ def export_content(options):
                     extfp.write(data)
                     extfp.close()
                     value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
-                elif name == 'relatedItems':
-                    value = [_getUID(rel_item) for rel_item in value]
+                elif field.type == 'reference':
+                    value = field.getRaw(obj)
                 obj_data['schemadata'][name] = value
 
         if obj.portal_type == 'Newsletter':
