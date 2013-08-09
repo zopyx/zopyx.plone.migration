@@ -10,12 +10,12 @@
 #
 # Usage:
 # bin/instance run exporter.py --path /path/to/<plone_id>--output <directory>
-# 
+#
 # The exporter will create a self-contained directory with the exported
 # data unter <directory>/<plone_id>. The directory will contain
 # two INI files contents.ini and structure.ini  that describe
 # the hierarchy structure of the exported site and exported contents.
-# The metadata and real content of each object is stored within the 
+# The metadata and real content of each object is stored within the
 # content subfolder. This directory will contain on file per exported
 # content object. The filename is determined by the original UID
 # of the content object. For binary files like File or Image there is
@@ -25,7 +25,7 @@
 # the data as is.
 # In addition the exporter cares out the export of members and groups
 # (members.ini, groups.ini)
-# 
+#
 # Tested with Plone 2.5, 3.3
 ###################################################################################
 
@@ -63,14 +63,13 @@ def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
     fp = file(ini_fn, 'w')
-    import pdb; pdb.set_trace()	
     if 'subscribers' in newsletter.objectIds():
         sfolder = newsletter.subscribers
     elif 'subscribers' in newsletter.aq_parent.objectIds():
         sfolder = newsletter.aq_parent.subscribers
     else:
         sfolder = newsletter.aq_parent
-                           
+
     for i, subs in enumerate([sub for sub in sfolder.contentValues() if sub.portal_type =='Subscriber']):
         if not subs.active:
             continue
@@ -86,9 +85,12 @@ def export_groups(options):
 
     log('Exporting groups')
     fp = file(os.path.join(options.export_directory, 'groups.ini'), 'w')
-
     acl_users = options.plone.acl_users
-    for i, group in enumerate(acl_users.source_groups.getGroups()):
+    groups = acl_users.source_groups.getGroups()
+    num_groups = len(groups)
+    for i, group in enumerate(groups):
+        if options.verbose:
+            log('--> (%d/%d) %s' % ((i + 1), num_groups, group.getId()))
         print >>fp, '[%d]' % i
         print >>fp, 'name = %s' % group.getId()
         print >>fp, 'members = %s' % ','.join(group.getMemberIds())
@@ -103,6 +105,8 @@ def export_members(options):
     fp = file(os.path.join(options.export_directory, 'members.ini'), 'w')
 
     acl_users = options.plone.acl_users
+    users = acl_users.getUserNames()
+    num_users = len(users)
     pm = options.plone.portal_membership
 
     try:
@@ -112,11 +116,19 @@ def export_members(options):
         # Plone 2.1
         passwords = None
 
-    for username in acl_users.getUserNames():
+    for i, username in enumerate(users):
+        if username == "":
+            # possibly Membrane User Object whick will be exported
+            # later in structure_export
+            continue
         user = acl_users.getUserById(username)
         member = pm.getMemberById(username)
         if member is None:
+            if options.verbose:
+                log('--> (%d/%d) INVALID %s' % ((i + 1), num_users, username))
             continue
+        if options.verbose:
+            log('--> (%d/%d) %s' % ((i + 1), num_users, username))
         roles = [r for r in member.getRoles() if not r in ('Member', 'Authenticated')]
         print >>fp, '[member-%s]' % username
         print >>fp, 'username = %s' % username
@@ -130,7 +142,7 @@ def export_members(options):
 
         print >>fp, 'fullname = %s' % member.getProperty('fullname')
         print >>fp, 'email = %s' % member.getProperty('email')
-        print >>fp, 'roles = %s' % ','.join(roles) 
+        print >>fp, 'roles = %s' % ','.join(roles)
         print >>fp
     fp.close()
     log('exported %d users' % len(acl_users.getUserNames()))
@@ -147,15 +159,19 @@ def export_structure(options):
 
     def _export_structure(fp, context, counter):
 
-        children = context.contentValues()
+        children = hasattr(aq_base(context), 'contentValues') and context.contentValues() or []
         children_uids = [_getUID(c) for c in children if _getUID(c)]
         context_uid = ''
         context_uid = _getUID(context)
+        rel_path = _getRelativePath(context, options.plone)
+
+        if options.verbose:
+            log('--> Analyzing Structure: %s' % rel_path)
 
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
-        print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
+        print >>fp, 'path = %s' % rel_path
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
         print >>fp, 'default_page = %s' % _getDefaultPage(context)
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
@@ -169,10 +185,10 @@ def export_structure(options):
     log('Exporting structure')
     fp = file(os.path.join(options.export_directory, 'structure.ini'), 'w')
     _export_structure(fp, options.plone, newCounter())
-    fp.close()    
+    fp.close()
 
 def _getLocalRolesBlock(obj):
-    val = getattr(obj, '__ac_local_roles_block__', 0) or 0 
+    val = getattr(obj, '__ac_local_roles_block__', 0) or 0
     return int(val)
 
 def _getReviewState(obj):
@@ -190,12 +206,12 @@ def _getTextFormat(obj):
 
 def _getContentType(obj):
     text_format = _getTextFormat(obj)
-    ct = None       
+    ct = None
     try:
         ct = obj.getContentType()
     except AttributeError:
         ct = obj.content_type()
-    if ct is not None: 
+    if ct is not None:
         if text_format in ('html', 'structured-text'):
             ct = 'text/html'
     return ct
@@ -204,7 +220,7 @@ def _getParents(obj):
     result = list()
     current = obj
     while current.portal_type != 'Plone Site':
-        result.append(dict(id=current.getId(), 
+        result.append(dict(id=current.getId(),
                            portal_type=PT_REPLACEMENT.get(current.portal_type, current.portal_type)))
         current = current.aq_inner.aq_parent
     return list(reversed(result))
@@ -230,7 +246,7 @@ def _getDefaultPage(obj):
     try:
         default_page = obj.getDefaultPage() or ''
     except AttributeError:
-        default_page = getattr(obj.aq_inner.aq_base, 'default_page', '') 
+        default_page = getattr(obj.aq_inner.aq_base, 'default_page', '')
     return default_page
 
 def _getPositionInParent(obj):
@@ -248,7 +264,7 @@ def _getUID(obj):
         return obj.aq_inner.aq_base.UID()
     except AttributeError:
         pass
-        
+
     if hasattr(obj.aq_inner.aq_base, 'fake_uid'):
         return obj.aq_inner.fake_uid
     fake_uid = str(uuid.uuid4())
@@ -276,7 +292,7 @@ def export_content(options):
     os.mkdir(export_dir)
     brains = catalog()
     log('%d items' % len(brains))
-    
+
     fp = file(os.path.join(options.export_directory, 'content.ini'), 'w')
     errors = list()
     num_exported = 0
@@ -303,15 +319,17 @@ def export_content(options):
         except AttributeError:
             errors.append(dict(path=brain.getPath(), error='no schema'))
             schema = None
-         
-        if obj.portal_type in IGNORED_TYPES:
+
+        if obj.portal_type in options.ignored_types:
+            if options.verbose:
+                log("    skipping ignored portal_type '%s'" % obj.portal_type)
             continue
 
-        obj_data = dict(schemadata=dict(), metadata=dict())        
+        obj_data = dict(schemadata=dict(), metadata=dict())
         if schema:
             ext_filename = None
             for field in schema.fields():
-                name = field.getName()   
+                name = field.getName()
                 try:
                     value = field.get(obj)
                 except ValueError:
@@ -354,7 +372,7 @@ def export_content(options):
             stats[obj.portal_type] = 0
         stats[obj.portal_type] += 1
         num_exported += 1
-        
+
         try:
             related_items = ','.join([o.UID() for o in obj.getRelatedItems()])
             related_items_paths = ','.join([_getRelativePath(o, options.plone) for o in obj.getRelatedItems()])
@@ -376,17 +394,21 @@ def export_content(options):
         print >>fp, 'owner = %s' % obj_data['metadata']['owner']
         print >>fp, 'creators = %s' % ','.join(obj_data['schemadata'].get('creators', ''))
         print >>fp, 'position_parent = %d' % obj_data['metadata']['position_parent']
-        print >>fp, 'local_roles_block = %d' % obj_data['metadata']['local_roles_block'] 
+        print >>fp, 'local_roles_block = %d' % obj_data['metadata']['local_roles_block']
         print >>fp
 
         # dump data as pickle
         pickle_name = os.path.join(export_dir, _getUID(obj))
-        cPickle.dump(obj_data, file(pickle_name, 'wb'))
+        try:
+            cPickle.dump(obj_data, file(pickle_name, 'wb'))
+        except Exception, msg:
+            log("%s: %s (%s)" % (Exception, msg, obj_data))
+
 
     fp.close()
 
     if errors:
-        log('Errors')    
+        log('Errors')
         for e in errors:
             log(e)
 
@@ -445,9 +467,14 @@ def main():
     parser.add_option('-o', '--output', dest='output', default='')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true',
                       default=False)
-
+    parser.add_option('-i', '--ignore', dest='ignored_types',
+                      action='store', default=IGNORED_TYPES,
+                      help="Provide comma separated List of Portal Types " \
+                      "to ignore")
     options, args = parser.parse_args()
     options.app = app
+    if isinstance(options.ignored_types, basestring):
+        options.ignored_types = options.ignored_types.split(',')
     export_site(app, options)
     transaction.commit()
 
