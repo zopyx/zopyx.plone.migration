@@ -52,6 +52,11 @@ IGNORED_TYPES = (
     'NewsletterTheme',
 )
 
+IGNORED_IDS = (
+    # IDs that are definitely not needed in Plone 4
+    'portal_cache_settings',
+)
+
 PT_REPLACEMENT = {
     'Large Plone Folder': 'Folder',
 }
@@ -179,6 +184,8 @@ def export_structure(options):
         print >>fp, 'local_roles_block = %d' % _getLocalRolesBlock(context)
         print >>fp
         for child in children:
+            if child.getId() in IGNORED_IDS:
+                continue
             if getattr(child.aq_inner, 'isPrincipiaFolderish', 0):
                 _export_structure(fp, child, counter)
 
@@ -299,8 +306,12 @@ def export_content(options):
     stats = dict()
     num_brains = len(brains)
     for i, brain in enumerate(brains):
+        if brain.getId in IGNORED_IDS:
+            continue
+
         if options.verbose:
             log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
+
         try:
             obj = brain.getObject()
         except Exception, e:
@@ -334,8 +345,8 @@ def export_content(options):
                     value = field.get(obj)
                 except ValueError:
                     continue
-                if name in ('image', 'file'):
-                    ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
+                if field.type in ('image', 'file'):
+                    ext_filename = os.path.join(export_dir, '%s_%s.bin' % (_getUID(obj), name))
                     extfp = file(ext_filename, 'wb')
                     try:
                         data = str(value.data)
@@ -343,14 +354,13 @@ def export_content(options):
                         data = value
                     extfp.write(data)
                     extfp.close()
-                    value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
+                    value = 'file://%s/%s_%s.bin' % (os.path.abspath(export_dir), _getUID(obj), name)
                 elif field.type == 'reference':
                     value = field.getRaw(obj)
                 obj_data['schemadata'][name] = value
 
         if obj.portal_type == 'Newsletter':
             obj_data['schemadata']['text'] = obj.text
-            obj_data['schemadata']['id'] = obj.getId()
 
         obj_data['metadata']['id'] = obj.getId()
         obj_data['metadata']['uid'] = _getUID(obj)
@@ -358,7 +368,7 @@ def export_content(options):
         obj_data['metadata']['review_state'] = _getReviewState(obj)
         obj_data['metadata']['owner'] = obj.getOwner().getUserName()
         obj_data['metadata']['content_type'] = _getContentType(obj)
-        obj_data['metadata']['text_format '] = _getTextFormat(obj)
+        obj_data['metadata']['text_format'] = _getTextFormat(obj)
         obj_data['metadata']['local_roles'] = obj.get_local_roles()
         obj_data['metadata']['parents'] = _getParents(obj)
         obj_data['metadata']['path'] = _getRelativePath(obj, options.plone)
@@ -380,6 +390,26 @@ def export_content(options):
             related_items = ''
             related_items_paths = ''
 
+        if obj.portal_type == "Topic":
+            obj_data['metadata']['topic_criterions'] = ','.join(obj.objectIds())
+            obj_data['topic_criterions'] = dict()
+            for crit in obj.objectValues():
+                try:
+                    schema = crit.aq_base.Schema()
+                except AttributeError:
+                    continue
+                crit_id = crit.getId()
+                obj_data['topic_criterions'][crit_id] = dict()
+                for field in schema.fields():
+                    name = field.getName()
+                    if field.type == 'reference':
+                        value = field.getRaw(crit)
+                    else:
+                        value = field.get(crit)
+                    obj_data['topic_criterions'][crit_id][name] = value
+                obj_data['topic_criterions'][crit_id]['content_type'] = _getContentType(crit)
+                obj_data['topic_criterions'][crit_id]['path'] = _getRelativePath(crit, options.plone)
+
         # write to INI file
         print >>fp, '[%s]' % _getUID(obj)
         print >>fp, 'path = %s' % _getRelativePath(obj, options.plone)
@@ -395,6 +425,8 @@ def export_content(options):
         print >>fp, 'creators = %s' % ','.join(obj_data['schemadata'].get('creators', ''))
         print >>fp, 'position_parent = %d' % obj_data['metadata']['position_parent']
         print >>fp, 'local_roles_block = %d' % obj_data['metadata']['local_roles_block']
+        if obj.portal_type == "Topic":
+            print >>fp, 'topic_criterions = %s' % obj_data['metadata']['topic_criterions']
         print >>fp
 
         # dump data as pickle
@@ -403,7 +435,6 @@ def export_content(options):
             cPickle.dump(obj_data, file(pickle_name, 'wb'))
         except Exception, msg:
             log("%s: %s (%s)" % (Exception, msg, obj_data))
-
 
     fp.close()
 
@@ -427,7 +458,12 @@ def export_site(app, options):
     site_id = plone.getId()
     export_dir = os.path.join(options.output, site_id)
     if os.path.exists(export_dir):
-        shutil.rmtree(export_dir, ignore_errors=True)
+        try:
+            shutil.rmtree(export_dir)
+        except:
+            log('Error in removing existing export directory %s.' \
+                'You have to remove it manually' % export_dir)
+            return
     os.makedirs(export_dir)
 
     log('Exporting Plone site: %s' % options.path)

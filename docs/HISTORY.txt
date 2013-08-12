@@ -5,6 +5,16 @@ Changes
 ----------------------
 - Various fixes for export while using with python 2.4 and Plone 2.5
   [ichim-david]
+- fix edge case where obj.objectValues() recursed infinitely (SimpleAlias)
+  [petschki]
+- generalize ReferenceField behaviour to use 'getRaw' method
+  [petschki]
+- add support for multiple file/image fields in schema
+  [petschki]
+- add support for Topic Criterions
+  [petschki]
+- add "-i/--ignore" (comma separated ignore types) to exporter console script
+  [petschki]
 
 0.2.8 (08.07.2013)
 ------------------
