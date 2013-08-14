@@ -164,7 +164,7 @@ def export_structure(options):
 
     def _export_structure(fp, context, counter):
 
-        children = hasattr(aq_base(context), 'contentValues') and context.contentValues() or []
+        children = hasattr(context.aq_base, 'contentValues') and context.contentValues() or []
         children_uids = [_getUID(c) for c in children if _getUID(c)]
         context_uid = ''
         context_uid = _getUID(context)
