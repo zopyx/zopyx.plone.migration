@@ -361,6 +361,7 @@ def export_content(options):
 
         if obj.portal_type == 'Newsletter':
             obj_data['schemadata']['text'] = obj.text
+            obj_data['schemadata']['id'] = obj.getId()
 
         obj_data['metadata']['id'] = obj.getId()
         obj_data['metadata']['uid'] = _getUID(obj)
