@@ -408,7 +408,7 @@ def export_content(options):
                     else:
                         value = field.get(crit)
                     obj_data['topic_criterions'][crit_id][name] = value
-                obj_data['topic_criterions'][crit_id]['content_type'] = _getContentType(crit)
+                obj_data['topic_criterions'][crit_id]['portal_type'] = crit.portal_type
                 obj_data['topic_criterions'][crit_id]['path'] = _getRelativePath(crit, options.plone)
 
         # write to INI file
@@ -462,7 +462,7 @@ def export_site(app, options):
         try:
             shutil.rmtree(export_dir)
         except:
-            log('Error in removing existing export directory %s.' \
+            log('Error in removing existing export directory %s.\n' \
                 'You have to remove it manually' % export_dir)
             return
     os.makedirs(export_dir)
