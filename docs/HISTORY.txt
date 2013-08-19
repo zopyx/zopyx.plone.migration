@@ -11,7 +11,7 @@ Changes
   [petschki]
 - add support for multiple file/image fields in schema
   [petschki]
-- add support for Topic Criterions
+- add support for Topic Criterions export/import
   [petschki]
 - add "-i/--ignore" (comma separated ignore types) to exporter console script
   [petschki]
