@@ -474,7 +474,8 @@ def import_topic_criterions(options, topic, criterion_ids, old_uid):
     obj_data = cPickle.load(file(pickle_filename))
     for crit_id in criterion_ids:
         crit_data = obj_data['topic_criterions'].get(crit_id)
-        if not crit_data or not crit_data.get('portal_type'):
+        if not crit_data or not crit_data.get('portal_type') or not crit_data.get('field'):
+            # disabled suptopic support
             continue
         crit = topic.addCriterion(crit_data['field'], crit_data['portal_type'])
         if not crit:
@@ -501,8 +502,10 @@ def uids_to_references(options, context, old_uids):
             old_data = cPickle.load(open(pickle_filename))
             old_path = old_data['metadata']['path']
             new_obj = context.restrictedTraverse(old_path, None)
-        if new_obj is not None:
-            new_refs.append(new_obj)
+            if new_obj is not None:
+                new_refs.append(new_obj)
+            else:
+                log("Could not find path for old object (%s)" % old_data)
     return new_refs
 
 
