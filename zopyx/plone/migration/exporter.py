@@ -36,17 +36,14 @@ import shutil
 import tempfile
 import sys
 import cPickle
-import transaction
 
 from Acquisition import aq_base
 from Acquisition import aq_inner
 from Acquisition import aq_parent
 from Testing.makerequest import makerequest
-from OFS.interfaces import IOrderedContainer
+#from OFS.interfaces import IOrderedContainer
 from Products.CMFCore.WorkflowCore import WorkflowException
 from AccessControl.SecurityManagement import newSecurityManager
-from zope.component import getMultiAdapter
-from zope.component.interfaces import ComponentLookupError
 
 IGNORED_TYPES = (
     'NewsletterTheme',
@@ -83,19 +80,24 @@ def export_plonegazette(options, newsletter):
     log('Exported %d subscribers' % i)
 
 def export_groups(options):
-
+    """ Not working """
+    return 
     log('Exporting groups')
     fp = file(os.path.join(options.export_directory, 'groups.ini'), 'w')
 
+    md = options.plone.portal_memberdata
+    gd = options.plone.portal_groupdata
     acl_users = options.plone.acl_users
-    for i, group in enumerate(acl_users.source_groups.getGroups()):
+    for i, group in enumerate(acl_users.Groups.acl_users.getUsers()):
+        group_data = gd._members['group_' + group.getId()]
+        
         print >>fp, '[%d]' % i
         print >>fp, 'name = %s' % group.getId()
-        print >>fp, 'members = %s' % ','.join(group.getMemberIds())
-        print >>fp, 'roles = %s' % ','.join(group.getRoles())
+        print >>fp, 'members = %s' % ','.join(group_data.getGroupMemberIds())
+        print >>fp, 'roles = %s' % ','.join(group_data.getRoles())
 
     fp.close()
-    log('exported %d groups' % len(acl_users.source_groups.getGroups()))
+    log('exported groups')
 
 def export_members(options):
 
@@ -207,7 +209,7 @@ def _getParents(obj):
         result.append(dict(id=current.getId(), 
                            portal_type=PT_REPLACEMENT.get(current.portal_type, current.portal_type)))
         current = current.aq_inner.aq_parent
-    return list(reversed(result))
+    return list(result[::-1])
 
 
 def _getRelativePath(obj, plone):
@@ -215,8 +217,6 @@ def _getRelativePath(obj, plone):
     obj_path = '/'.join(obj.getPhysicalPath())
     return obj_path.replace(plone_path + '/', '')
 
-def _getLayout(obj):
-    return obj.getLayout() or obj.getDefaultLayout()
 
 def _getWFPolicy(obj):
     wf_policy = getattr(obj.aq_inner, '.wf_policy_config', None)
@@ -236,7 +236,10 @@ def _getDefaultPage(obj):
 def _getPositionInParent(obj):
 
     parent = aq_parent(aq_inner(obj))
-    ordered = IOrderedContainer(parent, None)
+    try:
+        ordered = IOrderedContainer(parent, None)
+    except NameError:
+        return 0
     if ordered is not None:
         pos = ordered.getObjectPosition(obj.getId())
     else:
@@ -344,7 +347,6 @@ def export_content(options):
         obj_data['metadata']['local_roles'] = obj.get_local_roles()
         obj_data['metadata']['parents'] = _getParents(obj)
         obj_data['metadata']['path'] = _getRelativePath(obj, options.plone)
-        obj_data['metadata']['layout'] = _getLayout(obj)
         obj_data['metadata']['wf_policy'] = _getWFPolicy(obj)
         obj_data['metadata']['default_page'] = _getDefaultPage(obj)
         obj_data['metadata']['position_parent'] = _getPositionInParent(obj)
@@ -370,7 +372,6 @@ def export_content(options):
         print >>fp, 'uid = %s' % _getUID(obj)
         print >>fp, 'related_items = %s' % related_items
         print >>fp, 'related_items_paths = %s' % related_items_paths
-        print >>fp, 'layout = %s' % obj_data['metadata']['layout']
         print >>fp, 'default_page = %s' % obj_data['metadata']['default_page']
         print >>fp, 'wf_policy = %s' % obj_data['metadata']['wf_policy']
         print >>fp, 'owner = %s' % obj_data['metadata']['owner']
@@ -424,8 +425,8 @@ def export_site(app, options):
     options.plone = makerequest(plone)
 
     # The export show starts here
-    export_groups(options)
     export_members(options)
+    export_groups(options)
     export_placeful_workflow(options)
     export_structure(options)
     export_content(options)
@@ -449,7 +450,6 @@ def main():
     options, args = parser.parse_args()
     options.app = app
     export_site(app, options)
-    transaction.commit()
 
 if __name__ == '__main__':
     main()
