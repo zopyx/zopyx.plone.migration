@@ -60,7 +60,6 @@ def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
     fp = file(ini_fn, 'w')
-    import pdb; pdb.set_trace()	
     if 'subscribers' in newsletter.objectIds():
         sfolder = newsletter.subscribers
     elif 'subscribers' in newsletter.aq_parent.objectIds():
@@ -194,7 +193,10 @@ def _getContentType(obj):
     text_format = _getTextFormat(obj)
     ct = None       
     try:
-        ct = obj.getContentType()
+        try:
+            ct = obj.getContentType()
+        except TypeError:
+            ct = obj.getContentType(obj)
     except AttributeError:
         ct = obj.content_type()
     if ct is not None: 
@@ -317,16 +319,19 @@ def export_content(options):
                 name = field.getName()   
                 try:
                     value = field.get(obj)
-                except ValueError:
-                    continue
-                if name in ('image', 'file'):
+                except Exception:#
+                    value = str(getattr(obj, name, None))
+                cls_ = str(field.__class__)
+                if name in ('image', 'file', 'logo', 'themengrafik', 'datei', 'hp_foto', 'eteacher_foto') or 'ImageField' in cls_ or 'FileField' in cls_:
+                    print name
                     ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
                     extfp = file(ext_filename, 'wb')
                     try:
                         data = str(value.data)
                     except:
                         data = value
-                    extfp.write(data)
+                    if data:
+                        extfp.write(data)
                     extfp.close()
                     value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
                 elif name == 'relatedItems':
@@ -382,7 +387,12 @@ def export_content(options):
 
         # dump data as pickle
         pickle_name = os.path.join(export_dir, _getUID(obj))
-        cPickle.dump(obj_data, file(pickle_name, 'wb'))
+        try:
+           cPickle.dump(obj_data, file(pickle_name, 'wb'))
+        except:
+            for x, item in obj_data['schemadata'].items():
+                print x
+                cPickle.dumps(item)
 
     fp.close()
 
@@ -425,10 +435,10 @@ def export_site(app, options):
     options.plone = makerequest(plone)
 
     # The export show starts here
-    export_members(options)
-    export_groups(options)
-    export_placeful_workflow(options)
-    export_structure(options)
+#    export_members(options)
+#    export_groups(options)
+#    export_placeful_workflow(options)
+#    export_structure(options)
     export_content(options)
 
     log('Export done...releasing memory und Tschuessn')
