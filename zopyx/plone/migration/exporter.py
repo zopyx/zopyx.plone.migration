@@ -403,8 +403,6 @@ def export_content(options):
 
     log('Stats')
     log('%d items exported' % num_exported)
-    for k in sorted(stats.keys()):
-        log('%-40s %d' % (k, stats[k]))
 
 
 def export_site(app, options):
@@ -435,10 +433,10 @@ def export_site(app, options):
     options.plone = makerequest(plone)
 
     # The export show starts here
-#    export_members(options)
-#    export_groups(options)
-#    export_placeful_workflow(options)
-#    export_structure(options)
+    export_members(options)
+    export_groups(options)
+    export_placeful_workflow(options)
+    export_structure(options)
     export_content(options)
 
     log('Export done...releasing memory und Tschuessn')
