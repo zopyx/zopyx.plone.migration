@@ -4,6 +4,7 @@
 ################################################################
 
 import os
+import plone.api
 import shutil
 import tempfile
 import glob
@@ -26,6 +27,8 @@ from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
 from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
+
+import sys
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = (
@@ -54,27 +57,6 @@ PT_REPLACE_MAP = {
     'Newsletter' : 'ENLIssue',
     'GMap' : 'GeoLocation',
 }
-
-def import_plonegazette_subscribers(options, newsletter, old_uid):
-    """ Import PloneGazette subsribers into a new EasyNewsletter instance """
-
-    log('Importing subscribers %s' % newsletter.absolute_url(1))
-    subscribers_ini = os.path.join(options.input_directory, '%s_plonegazette_subscribers' % old_uid)
-    CP = ConfigParser()
-    CP.read([subscribers_ini])
-    get = CP.get
-    if newsletter.portal_type == 'EasyNewsletter':
-        parent = newsletter
-    else:
-        parent = newsletter.aq_parent
-    for section in CP.sections():
-        id_ = get(section, 'id')
-        if not id_ in parent.objectIds():
-            parent.invokeFactory('ENLSubscriber', id=id_)
-            subscriber = parent[id_]
-            subscriber.setTitle(get(section, 'fullname'))
-            subscriber.setFullname(get(section, 'fullname'))
-            subscriber.setEmail(get(section, 'email'))
 
 def import_placeful_workflow(options):
 
@@ -116,6 +98,15 @@ def import_members(options):
 
     for section in CP.sections():
         username = get(section, 'username')
+        if len(username) == 1:
+            username +='-2'
+        elif len(username) == 2:
+            username +='-2'
+       
+        email = get(section, 'email')
+        if not email:
+            continue
+
         if options.verbose:
             log('-> %s' % username)
 
@@ -124,14 +115,16 @@ def import_members(options):
             continue
         
         roles = get(section, 'roles').split(',') + ['Member']
-    
         try:
-            pr.addMember(username, 
-                         get(section, 'password'), 
-                         roles=roles)
-        except Exception, e:
-            errors.append(dict(username=username, error=e))
+            plone.api.user.create(email=get(section, 'email'),
+                                  username=username,
+                                  password=get(section, 'password'),
+                                  roles=roles)
+        except ValueError as e:
+            log('-> Error: %s' % e)
             continue
+
+
         count += 1
         member = pm.getMemberById(username)
         pm.createMemberArea(username)
@@ -249,6 +242,7 @@ def setObjectPosition(obj, position):
         return
 
 def setContentType(obj, content_type):
+    import pdb; pdb.set_trace() 
     obj.setContentType(content_type)
     obj.content_type = content_type
     if obj.portal_type == 'File':
@@ -387,7 +381,6 @@ def update_content(options, new_obj, old_uid):
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
-    setLayout(new_obj, obj_data['metadata']['layout'])
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
     setContentType(new_obj, obj_data['metadata']['content_type'])
@@ -473,15 +466,18 @@ def import_content(options):
         uid = CP.get(section, 'uid')
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
+
+        if path.startswith('Members/'):
+            continue
+
         if portal_type in IGNORED_TYPES:
             continue
         new_obj = folder_create(options.plone, path, portal_type)
-        if uid:
-            update_content(options, new_obj, uid)
-        if portal_type in ('Newsletter', 'NewsletterTheme'):
-            import_plonegazette_subscribers(options, new_obj, uid) 
 
     transaction.savepoint()
+
+    log('EARLY EXIT')
+    return
 
     # Now recreate the child objects within
     log('Creating content')
@@ -641,10 +637,10 @@ def import_plone(app, options):
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
-    import_groups(options)
-    import_placeful_workflow(options)
+#    import_groups(options)
+#    import_placeful_workflow(options)
     import_content(options)
-    fixup_uids(options)
+#    fixup_uids(options)
     return plone.absolute_url(1)
 
 def import_site(options):
@@ -669,7 +665,7 @@ def main():
     parser.add_option('-d', '--dest-folder', dest='dest_folder', default='sites')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
-    options, args = parser.parse_args()
+    options, args = parser.parse_args(sys.argv[2:])
     import_site(options)
 
 if __name__ == '__main__':
