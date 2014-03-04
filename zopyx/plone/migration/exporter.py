@@ -328,10 +328,11 @@ def export_content(options):
                 obj_data['schemadata']['text'] = obj.text
                 obj_data['schemadata']['content_type'] = obj.text_format
             elif obj.portal_type in ('Link',):
-                obj_data['schemadata']['remote_url'] = obj.remote_url
+                # Dexterity Link type uses 'remoteUrl'
+                obj_data['schemadata']['remoteUrl'] = obj.remote_url
             elif obj.portal_type in ('Event',):
-                obj_data['schemadata']['start_date'] = obj.start_date
-                obj_data['schemadata']['end_date'] = obj.end_date
+                obj_data['schemadata']['start'] = obj.start_date
+                obj_data['schemadata']['end'] = obj.end_date
                 obj_data['schemadata']['contact_email'] = obj.contact_email
                 obj_data['schemadata']['contact_name'] = obj.contact_name
                 obj_data['schemadata']['contact_phone'] = obj.contact_phone
