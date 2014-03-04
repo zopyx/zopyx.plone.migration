@@ -13,6 +13,7 @@ import urllib2
 import cPickle
 import shutil
 import lxml.html
+import magic
 from optparse import OptionParser
 from datetime import datetime
 from ConfigParser import ConfigParser
@@ -27,6 +28,9 @@ from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
 from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
+from plone.namedfile.field import NamedBlobFile, NamedBlobImage
+from plone import namedfile
+from plone.app.textfield.value import RichTextValue
 
 import sys
 
@@ -96,7 +100,7 @@ def import_members(options):
     errors = list()
     pr.addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
-    for section in CP.sections():
+    for section in CP.sections()[:]:
         username = get(section, 'username')
         if len(username) == 1:
             username +='-2'
@@ -242,7 +246,7 @@ def setObjectPosition(obj, position):
         return
 
 def setContentType(obj, content_type):
-    import pdb; pdb.set_trace() 
+    return
     obj.setContentType(content_type)
     obj.content_type = content_type
     if obj.portal_type == 'File':
@@ -417,27 +421,53 @@ def create_new_obj(options, folder, old_uid):
         new_obj = candidate
 
     for k,v in obj_data['schemadata'].items():
-        if k in IGNORED_FIELDS:
+
+        if k in ('title', 
+                'description', 
+                'remote_url',
+                'contact_email', 
+                'contact_phone', 
+                'contact_name'):
+            setattr(new_obj, k, v)
             continue
-        field = new_obj.Schema().getField(k)
-        if field is None:
+
+        if k in ('text',):
+            setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
-        if isinstance(v, basestring) and v.startswith('file://'):
-            v = urllib2.urlopen(v).read()
-        try:
-            field.set(new_obj, v)
-        except Exception, e:
-            log('Unable to set %s for %s (%s)' % (k, new_obj.absolute_url(1), e))
-            
-    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
-    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
-    changeOwner(new_obj, obj_data['metadata']['owner'])
-    setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
-    setReviewState(new_obj, obj_data['metadata']['review_state'])
-    setLayout(new_obj, obj_data['metadata']['layout'])
-    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
-    setExcludeFromNav(new_obj, options)
-    setContentType(new_obj, obj_data['metadata']['content_type'])
+
+        if k in ('start_date', 'end_date'):
+            if isinstance(v, DateTime):
+                v = datetime.fromtimestamp(v.timeTime())
+            else:
+                v = None
+            setattr(new_obj, k, v)
+            continue
+
+        if k in ('image', 'file'):
+            filename = '/'.join(v.split('/')[-3:])
+            v = open(filename, 'rb').read()
+            mt = magic.from_buffer(v, True)
+            ext = mt.split('/')[-1]
+            filename = u'{}.{}'.format(new_obj.getId(), ext)
+            if new_obj.portal_type == 'Image':
+                setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename))
+                continue
+            elif new_obj.portal_type == 'File':
+                setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+                continue
+
+        if k not in ('content_type',):
+            print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
+
+#    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
+#    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
+#    changeOwner(new_obj, obj_data['metadata']['owner'])
+#    setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
+#    setReviewState(new_obj, obj_data['metadata']['review_state'])
+#    setLayout(new_obj, obj_data['metadata']['layout'])
+#    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
+#    setExcludeFromNav(new_obj, options)
+#    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
 
@@ -476,9 +506,6 @@ def import_content(options):
 
     transaction.savepoint()
 
-    log('EARLY EXIT')
-    return
-
     # Now recreate the child objects within
     log('Creating content')
     for i, section in enumerate(sections):
@@ -489,101 +516,22 @@ def import_content(options):
             current = options.plone
         else:
             path = CP.get(section, 'path')
+            if 'Members/' in path:
+                continue
+
             if CP.get(section, 'portal_type') in IGNORED_TYPES:
                 continue
             current = options.plone.restrictedTraverse(path)
 
         for uid in uids:
-            create_new_obj(options, current, uid)
+            try:
+                create_new_obj(options, current, uid)
+            except ValueError as e:
+                log('--> unknown content type %s' % CP.get(section, 'portal_type'))
         log('--> %d children created' % len(uids))
 
         if i % 10 == 0:
             transaction.savepoint()
-
-    # Now using content.ini for post migration fix-up
-    structure_ini = os.path.join(options.input_directory, 'structure.ini')
-    CP = ConfigParser()
-    CP.read([structure_ini])
-    get = CP.get
-    sections = CP.sections()
-    log('Post migration fix-up (structure.ini)')
-    for i, section in enumerate(sections):
-        # Default page
-        try:
-            default_page = CP.get(section, 'default_page')
-        except:
-            default_page = None
-        if default_page:
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            try:
-                child_ids = obj.objectIds()
-            except AttributeError:                
-                child_ids = []
-            if default_page in child_ids:
-                log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
-                obj.setDefaultPage(default_page)
-                obj.default_page = default_page
-
-
-    content_ini = os.path.join(options.input_directory, 'content.ini')
-    CP = ConfigParser()
-    CP.read([content_ini])
-    get = CP.get
-    sections = CP.sections()
-    log('Post migration fix-up (content.ini)')
-    for i, section in enumerate(sections):
-
-        # folder album view
-        if CP.get(section, 'portal_type') == 'Folder':
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            images = obj.getFolderContents({'portal_type' : 'Image'})
-            if len(images) > 0 and len(images) == len(obj.contentValues()):
-                log('Setting galleryview on %s' % obj.absolute_url(1))
-                obj.selectViewTemplate('galleryview')
-
-        # Flowplayer
-        if CP.get(section, 'portal_type') == 'File':
-            id_ = CP.get(section, 'id')
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            basename, ext = os.path.splitext(id_)
-            if ext.lower() in ('.mp3', '.mp4', '.wmv') and 'collective.flowplayer' in installed_products:
-                log('Setting flowplayer view on %s' % obj.absolute_url(1))
-                obj.selectViewTemplate('flowplayer')
-
-        # Default page
-        try:
-            default_page = CP.get(section, 'default_page')
-        except:
-            default_page = None
-        if default_page:
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            try:
-                child_ids = obj.objectIds()
-            except AttributeError:                
-                child_ids = []
-            if default_page in child_ids:
-                log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
-                obj.setDefaultPage(default_page)
-                obj.default_page = default_page
-
-        # related items
-        related_items_paths = CP.get(section, 'related_items_paths').split(',')
-        if related_items_paths:
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            if obj is not None:
-                ref_objs = []
-                for related_items_path in related_items_paths:
-                    o = options.plone.restrictedTraverse(related_items_path, None)
-                    if o is not None:
-                        ref_objs.append(o)
-                log('Setting related items on %s' % obj.absolute_url(1))
-                if ref_objs:
-                    obj.setRelatedItems(ref_objs)                                            
 
 
 def log(s):
