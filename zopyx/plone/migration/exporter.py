@@ -45,38 +45,19 @@ from Testing.makerequest import makerequest
 from Products.CMFCore.WorkflowCore import WorkflowException
 from AccessControl.SecurityManagement import newSecurityManager
 
+
 IGNORED_TYPES = (
-    'NewsletterTheme',
 )
+
 
 PT_REPLACEMENT = {
     'Large Plone Folder': 'Folder',
 }
 
+
 def log(s):
     print >>sys.stdout, s
 
-def export_plonegazette(options, newsletter):
-    ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
-    log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
-    fp = file(ini_fn, 'w')
-    if 'subscribers' in newsletter.objectIds():
-        sfolder = newsletter.subscribers
-    elif 'subscribers' in newsletter.aq_parent.objectIds():
-        sfolder = newsletter.aq_parent.subscribers
-    else:
-        sfolder = newsletter.aq_parent
-                           
-    for i, subs in enumerate([sub for sub in sfolder.contentValues() if sub.portal_type =='Subscriber']):
-        if not subs.active:
-            continue
-        print >>fp, '[%d]' % i
-        print >>fp, 'id = %s' % subs.getId()
-        print >>fp, 'fullname = %s' % subs.Title()
-        print >>fp, 'email = %s' % subs.Title()
-        print >>fp, 'format = %s' % subs.format.lower()
-    fp.close()
-    log('Exported %d subscribers' % i)
 
 def export_groups(options):
     """ Not working """
@@ -299,10 +280,6 @@ def export_content(options):
                 errors.append(dict(path=brain.getPath(), error=e))
                 continue
 
-        # content-type specific export code
-        if obj.portal_type in ('Newsletter', 'NewsletterTheme'):
-            export_plonegazette(options, obj)
-
         try:
             schema = obj.Schema()
         except AttributeError:
@@ -337,10 +314,28 @@ def export_content(options):
                 elif name == 'relatedItems':
                     value = [_getUID(rel_item) for rel_item in value]
                 obj_data['schemadata'][name] = value
-
-        if obj.portal_type == 'Newsletter':
-            obj_data['schemadata']['text'] = obj.text
-            obj_data['schemadata']['id'] = obj.getId()
+        else:
+            obj_data['schemadata']['title'] = obj.title
+            obj_data['schemadata']['description'] = obj.description
+            if obj.portal_type in ('Image', 'File'):
+                ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
+                extfp = file(ext_filename, 'wb')
+                extfp.write(str(obj.data))
+                extfp.close()
+                value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
+                obj_data['schemadata'][obj.portal_type.lower()] = value
+            elif obj.portal_type in ('Document',):
+                obj_data['schemadata']['text'] = obj.text
+                obj_data['schemadata']['content_type'] = obj.text_format
+            elif obj.portal_type in ('Link',):
+                obj_data['schemadata']['remote_url'] = obj.remote_url
+            elif obj.portal_type in ('Event',):
+                obj_data['schemadata']['start_date'] = obj.start_date
+                obj_data['schemadata']['end_date'] = obj.end_date
+                obj_data['schemadata']['contact_email'] = obj.contact_email
+                obj_data['schemadata']['contact_name'] = obj.contact_name
+                obj_data['schemadata']['contact_phone'] = obj.contact_phone
+            print obj_data
 
         obj_data['metadata']['id'] = obj.getId()
         obj_data['metadata']['uid'] = _getUID(obj)
