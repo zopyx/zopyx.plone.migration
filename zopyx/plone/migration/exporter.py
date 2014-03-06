@@ -30,6 +30,7 @@
 ###################################################################################
 
 import os
+import simplejson
 import uuid
 import gc
 import shutil
@@ -45,6 +46,31 @@ from Testing.makerequest import makerequest
 from Products.CMFCore.WorkflowCore import WorkflowException
 from AccessControl.SecurityManagement import newSecurityManager
 
+vcard_fields = [
+ 'academic',
+ 'bemerkung',
+ 'bundesland',
+ 'db_projekte',
+ 'expertise',
+ 'fachgebiete',
+ 'fon1',
+ 'fon2',
+ 'geburtstag',
+ 'geschlecht',
+ 'id',
+ 'institution',
+ 'institutsLocation',
+ 'kooperationsInteresse',
+ 'mitgliedschaften',
+ 'name',
+ 'plz',
+ 'position',
+ 'projekte',
+ 'title',
+ 'uniId',
+ 'uniName',
+ 'vorname',
+]
 
 IGNORED_TYPES = (
 )
@@ -83,8 +109,10 @@ def export_members(options):
 
     log('Exporting Members')
     fp = file(os.path.join(options.export_directory, 'members.ini'), 'w')
+    fp = file(os.path.join(options.export_directory, 'members.ini'), 'w')
 
     acl_users = options.plone.acl_users
+    members = options.plone.Members
     pm = options.plone.portal_membership
 
     try:
@@ -97,8 +125,11 @@ def export_members(options):
     for username in acl_users.getUserNames():
         user = acl_users.getUserById(username)
         member = pm.getMemberById(username)
+        membership = options.plone.portal_membership
+
         if member is None:
             continue
+
         roles = [r for r in member.getRoles() if not r in ('Member', 'Authenticated')]
         print >>fp, '[member-%s]' % username
         print >>fp, 'username = %s' % username
@@ -113,7 +144,43 @@ def export_members(options):
         print >>fp, 'fullname = %s' % member.getProperty('fullname')
         print >>fp, 'email = %s' % member.getProperty('email')
         print >>fp, 'roles = %s' % ','.join(roles) 
+
+        portrait = membership.getPersonalPortrait(username)
+        try:
+            portrait_data = str(portrait._data)
+        except AttributeError:
+            portrait_data = None
+        if portrait_data:
+            portrait_fp = open(os.path.join(options.export_directory, 'member-portrait-%s.bin' % username), 'wb')
+            portrait_fp.write(portrait_data)
+            portrait_fp.close()
+            print >>fp, 'portrait_filename = eteaching/member-portrait-%s.bin' % username
+        else:
+            print >>fp, 'portrait_filename = '
+
+        member_folder = members.get(username)
+        vcard_data = dict()
+        friends = []
+        enemies = []
+        if member_folder:
+            if 'buddylist' in member_folder.objectIds():
+                friends = member_folder.buddylist.confirmedBuddies.buddies
+                enemies = member_folder.buddylist.blackListBuddies.buddies
+            if 'user' in member_folder.objectIds():
+                vcard = member_folder['user']
+                s = str(vcard)
+                for name in vcard_fields:
+                    vcard_data[name] = vcard.__dict__.get(name)
+                    if name == 'geburtstag' and vcard_data[name]:
+                        try:
+                            vcard_data[name] = vcard_data[name].strftime('%02d.%02m.%4Y')
+                        except ValueError:
+                            vcard_data[name] = None
+        print >>fp, 'vcard = %s' % simplejson.dumps(vcard_data)
+        print >>fp, 'friends = %s' % simplejson.dumps(friends)
+        print >>fp, 'enemies = %s' % simplejson.dumps(enemies)
         print >>fp
+
     fp.close()
     log('exported %d users' % len(acl_users.getUserNames()))
 
@@ -288,6 +355,14 @@ def export_content(options):
          
         if obj.portal_type in IGNORED_TYPES:
             continue
+
+        path = brain.getPath()
+        if 'Members/' in path:
+            continue
+            if '.trashcan' in path:
+                continue
+            if brain.getId in ('.personal', 'buddylist', 'linklists', 'messages', 'myevents', 'user'):
+                continue
 
         obj_data = dict(schemadata=dict(), metadata=dict())        
         if schema:
