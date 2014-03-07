@@ -91,6 +91,8 @@ def import_members(options):
     log('Importing members')
     pr = options.plone.portal_registration
     pm = options.plone.portal_membership
+    md = options.plone.portal_memberdata
+    ms = options.plone.portal_membership
     members_ini = os.path.join(options.input_directory, 'members.ini')
 
     CP = ConfigParser()
@@ -160,6 +162,25 @@ def import_members(options):
                                         phone=vcard.get('fon1'),
                                         gender=vcard.get('geschlecht'),
                                   ))
+
+        try:
+            portrait_filename = get(section, 'portrait_filename')
+        except:
+            portrait_filename = None
+
+        if portrait_filename:
+            from OFS.Image import Image
+            from Products.PlonePAS.utils import scale_image
+
+            try:
+                scaled, mimetype = scale_image(open(portrait_filename, 'rb'))
+            except:
+                continue
+
+            portrait = Image(id=username, file=scaled, title='')
+            membertool = getToolByName(options.plone, 'portal_memberdata')
+            membertool._setPortrait(portrait, username)
+
     if errors:
         log('Errors')
         for e in errors:
