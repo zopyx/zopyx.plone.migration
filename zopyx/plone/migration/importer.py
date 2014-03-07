@@ -3,6 +3,7 @@
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
+import json
 import os
 import plone.api
 import shutil
@@ -98,6 +99,20 @@ def import_members(options):
 
     count = 0
     errors = list()
+
+    plone.api.group.create(groupname='CommunityMember',
+                           title='Community Members',
+                           roles=['Member'])
+
+    plone.api.group.create(groupname='BaWueTeacher',
+                           title='BaWue Teachers',
+                           roles=['Member'])
+
+
+    plone.api.group.create(groupname='UniversityEditor',
+                           title='University Editors',
+                           roles=['Member'])
+
     pr.addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
     for section in CP.sections()[:]:
@@ -118,22 +133,32 @@ def import_members(options):
         if username.startswith('group_'):
             continue
         
-        roles = get(section, 'roles').split(',') + ['Member']
         try:
             plone.api.user.create(email=get(section, 'email'),
                                   username=username,
                                   password=get(section, 'password'),
-                                  roles=roles)
+                                  roles=('Member',))
+
+
         except ValueError as e:
             log('-> Error: %s' % e)
             continue
 
+        roles = get(section, 'roles').split(',') 
+        for role in roles:
+            role = role.strip()
+            if not role or role in ('Manager', 'Member'):
+                continue
+            plone.api.group.add_user(groupname=role, username=username)
 
         count += 1
         member = pm.getMemberById(username)
         pm.createMemberArea(username)
+        vcard = json.loads(get(section, 'vcard'))
         member.setMemberProperties(dict(email=get(section, 'email'),
                                         fullname=get(section, 'fullname'),
+                                        phone=vcard.get('fon1'),
+                                        gender=vcard.get('geschlecht'),
                                   ))
     if errors:
         log('Errors')
@@ -235,9 +260,8 @@ def setExcludeFromNav(obj, options):
     """ Force exclude from navigation for certain portal_types
         in the Plone root only.
     """
-    if obj.aq_parent.getId() == options.plone.getId() and \
-       obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
-        obj.setExcludeFromNav(True)
+    if obj.portal_type in ('File', 'Image'):
+        obj.exclude_from_nav = True
 
 def setObjectPosition(obj, position):
     try:
@@ -425,8 +449,6 @@ def create_new_obj(options, folder, old_uid):
         if k in ('title', 
                 'description', 
                 'remote_url',
-                'start', 
-                'end',
                 'contact_email', 
                 'contact_phone', 
                 'contact_name'):
@@ -462,13 +484,13 @@ def create_new_obj(options, folder, old_uid):
             print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
-#    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
+    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
 #    setLayout(new_obj, obj_data['metadata']['layout'])
 #    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
-#    setExcludeFromNav(new_obj, options)
+    setExcludeFromNav(new_obj, options)
 #    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
@@ -519,6 +541,9 @@ def import_content(options):
             if CP.get(section, 'portal_type') in IGNORED_TYPES:
                 continue
             current = options.plone.restrictedTraverse(path)
+
+        if CP.get(section, 'portal_type') in ('Folder',):
+            continue
 
         for uid in uids:
             try:
@@ -584,7 +609,7 @@ def import_plone(app, options):
     import_members(options)
 #    import_groups(options)
 #    import_placeful_workflow(options)
-    import_content(options)
+#    import_content(options)
 #    fixup_uids(options)
     return plone.absolute_url(1)
 
