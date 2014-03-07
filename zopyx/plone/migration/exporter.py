@@ -195,6 +195,8 @@ def newCounter():
 def export_structure(options):
 
     def _export_structure(fp, context, counter):
+        if context.getId() == 'Members':
+            return
 
         children = context.contentValues()
         children_uids = [_getUID(c) for c in children if _getUID(c)]
@@ -287,14 +289,10 @@ def _getPositionInParent(obj):
 
     parent = aq_parent(aq_inner(obj))
     try:
-        ordered = IOrderedContainer(parent, None)
-    except NameError:
+        print parent.getObjectPosition(obj.getId())
+        return parent.getObjectPosition(obj.getId())
+    except:
         return 0
-    if ordered is not None:
-        pos = ordered.getObjectPosition(obj.getId())
-    else:
-        pos = 0
-    return pos
 
 def _getUID(obj):
     try:
