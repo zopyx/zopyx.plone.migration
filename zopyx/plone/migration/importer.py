@@ -425,6 +425,8 @@ def create_new_obj(options, folder, old_uid):
         if k in ('title', 
                 'description', 
                 'remote_url',
+                'start', 
+                'end',
                 'contact_email', 
                 'contact_phone', 
                 'contact_name'):
@@ -435,7 +437,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('start_date', 'end_date'):
+        if k in ('start', 'end'):
             if isinstance(v, DateTime):
                 v = datetime.fromtimestamp(v.timeTime())
             else:
@@ -461,9 +463,9 @@ def create_new_obj(options, folder, old_uid):
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
 #    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
-#    changeOwner(new_obj, obj_data['metadata']['owner'])
-#    setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
-#    setReviewState(new_obj, obj_data['metadata']['review_state'])
+    changeOwner(new_obj, obj_data['metadata']['owner'])
+    setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
+    setReviewState(new_obj, obj_data['metadata']['review_state'])
 #    setLayout(new_obj, obj_data['metadata']['layout'])
 #    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
 #    setExcludeFromNav(new_obj, options)
@@ -497,9 +499,6 @@ def import_content(options):
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
 
-        if path.startswith('Members/'):
-            continue
-
         if portal_type in IGNORED_TYPES:
             continue
         new_obj = folder_create(options.plone, path, portal_type)
@@ -516,8 +515,6 @@ def import_content(options):
             current = options.plone
         else:
             path = CP.get(section, 'path')
-            if 'Members/' in path:
-                continue
 
             if CP.get(section, 'portal_type') in IGNORED_TYPES:
                 continue
