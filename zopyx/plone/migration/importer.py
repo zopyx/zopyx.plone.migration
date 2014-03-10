@@ -15,6 +15,7 @@ import cPickle
 import shutil
 import lxml.html
 import magic
+from zope.component import getUtility
 from optparse import OptionParser
 from datetime import datetime
 from ConfigParser import ConfigParser
@@ -32,36 +33,31 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConf
 from plone.namedfile.field import NamedBlobFile, NamedBlobImage
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
+from zope.intid.interfaces import IIntIds
 
 import sys
 
-IGNORED_FIELDS = ('id', 'relatedItems')
-IGNORED_TYPES = (
-     'Topic', 
-#    'Ploneboard', 
-#    'PloneboardForum', 
-#    'NewsletterTheme', 
-#    'Newsletter', 
-    'Section', 
-    'NewsletterBTree', 
-    'NewsletterReference', 
-    'NewsletterRichReference', 
-    'CalendarXFolder',
-#    'GMap',
-#    'Collage', 
-#    'CollageRow', 
-#    'CollageColumn',
-#    'FormFolder',
-#    'PloneboardConversation',
-#    'PloneboardComment',
-)   
-
-PT_REPLACE_MAP = {
-    'NewsletterTheme' : 'EasyNewsletter',
-#    'NewsletterTheme' : 'ENLIssue',
-    'Newsletter' : 'ENLIssue',
-    'GMap' : 'GeoLocation',
+vcard_props = {
+    'academic': 'academic',
+    'bemerkung': 'description',
+    'bundesland': 'state',
+#    'db_projekte': 'db_projects',
+#    'expertise': 'expertise',
+#    'fachgebiete': 'specialties',
+    'fon1': 'phone',
+#    'geburtstag': 'birthday',
+    'geschlecht': 'gender',
+#    'institution': 'institution',
+#    'institutsLocation': 'institution_location',
+#    'kooperationsInteresse': 'cooperation_interests',
+#    'mitgliedschaften': 'memberships',
+    'plz': 'zip',
+    'position': 'position',
+#    'projekte': 'projects',
+    'title': 'title',
 }
+
+IGNORED_FIELDS = ('id', 'relatedItems')
 
 def import_placeful_workflow(options):
 
@@ -119,6 +115,9 @@ def import_members(options):
 
     for section in CP.sections()[:]:
         username = get(section, 'username')
+#        if username != 'mschmidt1':
+#            continue
+
         if len(username) == 1:
             username +='-2'
         elif len(username) == 2:
@@ -155,13 +154,30 @@ def import_members(options):
 
         count += 1
         member = pm.getMemberById(username)
-        pm.createMemberArea(username)
+#        pm.createMemberArea(username)
         vcard = json.loads(get(section, 'vcard'))
-        member.setMemberProperties(dict(email=get(section, 'email'),
-                                        fullname=get(section, 'fullname'),
-                                        phone=vcard.get('fon1'),
-                                        gender=vcard.get('geschlecht'),
-                                  ))
+        member_props = dict(email=get(section, 'email'),
+                            fullname=get(section, 'fullname'))
+
+        for k,v in vcard_props.items():
+            value = vcard.get(k)
+            if not value:
+                continue
+            
+            if v in ['db_projects', 'specialties', 'cooperation_interests', 'memberships', 'projects']:
+                if isinstance(value, list):
+                    member_props[v] = value
+                elif isinstance(value, basestring):
+                    member_props[v] = [value]
+
+            else:
+                if isinstance(value, basestring):
+                    member_props[v] = value
+
+
+        import pprint
+        pprint.pprint(member_props)
+        member.setMemberProperties(member_props)
 
         try:
             portrait_filename = get(section, 'portrait_filename')
@@ -214,8 +230,19 @@ def import_groups(options):
                                   
     log('%d groups imported' % count)
 
+def target_pt(default_portal_type, id_, dirname):
+
+    if default_portal_type=='Medienbeitrag':
+        return 'eteaching.policy.podcastitem'
+
+    if id_.startswith('vodcast') or id_.startswith('podcast'):
+        return 'eteaching.policy.podcastchannel'
+
+    return default_portal_type
 
 def folder_create(root, dirname, portal_type):
+
+
 
     current = root
     components = dirname.split('/')
@@ -234,7 +261,8 @@ def folder_create(root, dirname, portal_type):
         if constrainsMode is not None:
             current.setConstrainTypesMode(0)
 
-        current.invokeFactory(PT_REPLACE_MAP.get(portal_type, portal_type), id=components[-1])
+        target_portal_type = target_pt('Folder', components[-1], dirname)
+        current.invokeFactory(target_portal_type, id=components[-1])
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
@@ -448,8 +476,6 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
-        if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
-            return
         try:
             constrainsMode = folder.getConstrainTypesMode()
         except AttributeError:
@@ -458,7 +484,12 @@ def create_new_obj(options, folder, old_uid):
             folder.setConstrainTypesMode(0)
         pt = obj_data['metadata']['portal_type']
         if not id_ in folder.objectIds():
-            folder.invokeFactory(PT_REPLACE_MAP.get(pt, pt), id=id_)
+            target_portal_type = target_pt(pt, id_, id_)
+            try:
+                folder.invokeFactory(target_portal_type, id=id_)
+            except:
+                id_ = id_ + '-2'
+                folder.invokeFactory(target_portal_type, id=id_)
             if constrainsMode is not None:
                 folder.setConstrainTypesMode(constrainsMode)
         new_obj = folder[id_]
@@ -471,7 +502,7 @@ def create_new_obj(options, folder, old_uid):
                 'description', 
                 'remote_url',
                 'contact_email', 
-                'contact_phone', 
+                'contact_phone',
                 'contact_name'):
             setattr(new_obj, k, v)
             continue
@@ -499,6 +530,20 @@ def create_new_obj(options, folder, old_uid):
                 continue
             elif new_obj.portal_type == 'File':
                 setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+                continue
+
+        if portal_type_ == 'Medienbeitrag':
+            if k in ('subtitle', 'partner'):
+                setattr(new_obj, k, v)
+                continue
+
+            if k == 'media':
+                id_ = v.split('/')[-1]
+                intid_util = getUtility(IIntIds)
+                media_items = options.plone['media-items']
+                if id_ in media_items.objectIds():
+                    media_item_intid = intid_util.getId(media_items[id_])
+                    new_obj.media = media_item_intid
                 continue
 
         if k not in ('content_type',):
@@ -542,10 +587,8 @@ def import_content(options):
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
 
-        if portal_type in IGNORED_TYPES:
-            continue
         new_obj = folder_create(options.plone, path, portal_type)
-
+    
     transaction.savepoint()
 
     # Now recreate the child objects within
@@ -559,12 +602,7 @@ def import_content(options):
         else:
             path = CP.get(section, 'path')
 
-            if CP.get(section, 'portal_type') in IGNORED_TYPES:
-                continue
-            current = options.plone.restrictedTraverse(path)
-
-        if CP.get(section, 'portal_type') in ('Folder',):
-            continue
+        current = options.plone.restrictedTraverse(path)
 
         for uid in uids:
             try:
@@ -628,9 +666,10 @@ def import_plone(app, options):
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
+    options.plone.restrictedTraverse('@@import-mediaitems')()
 #    import_groups(options)
 #    import_placeful_workflow(options)
-#    import_content(options)
+    import_content(options)
 #    fixup_uids(options)
     return plone.absolute_url(1)
 
