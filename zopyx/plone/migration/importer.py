@@ -3,6 +3,8 @@
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
+import pytz
+import json
 import os
 import plone.api
 import shutil
@@ -14,6 +16,7 @@ import cPickle
 import shutil
 import lxml.html
 import magic
+from zope.component import getUtility
 from optparse import OptionParser
 from datetime import datetime
 from ConfigParser import ConfigParser
@@ -31,36 +34,31 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConf
 from plone.namedfile.field import NamedBlobFile, NamedBlobImage
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
+from zope.intid.interfaces import IIntIds
 
 import sys
 
-IGNORED_FIELDS = ('id', 'relatedItems')
-IGNORED_TYPES = (
-     'Topic', 
-#    'Ploneboard', 
-#    'PloneboardForum', 
-#    'NewsletterTheme', 
-#    'Newsletter', 
-    'Section', 
-    'NewsletterBTree', 
-    'NewsletterReference', 
-    'NewsletterRichReference', 
-    'CalendarXFolder',
-#    'GMap',
-#    'Collage', 
-#    'CollageRow', 
-#    'CollageColumn',
-#    'FormFolder',
-#    'PloneboardConversation',
-#    'PloneboardComment',
-)   
-
-PT_REPLACE_MAP = {
-    'NewsletterTheme' : 'EasyNewsletter',
-#    'NewsletterTheme' : 'ENLIssue',
-    'Newsletter' : 'ENLIssue',
-    'GMap' : 'GeoLocation',
+vcard_props = {
+    'academic': 'academic',
+    'bemerkung': 'description',
+    'bundesland': 'state',
+#    'db_projekte': 'db_projects',
+#    'expertise': 'expertise',
+#    'fachgebiete': 'specialties',
+    'fon1': 'phone',
+#    'geburtstag': 'birthday',
+    'geschlecht': 'gender',
+#    'institution': 'institution',
+#    'institutsLocation': 'institution_location',
+#    'kooperationsInteresse': 'cooperation_interests',
+#    'mitgliedschaften': 'memberships',
+    'plz': 'zip',
+    'position': 'position',
+#    'projekte': 'projects',
+    'title': 'title',
 }
+
+IGNORED_FIELDS = ('id', 'relatedItems')
 
 def import_placeful_workflow(options):
 
@@ -90,6 +88,8 @@ def import_members(options):
     log('Importing members')
     pr = options.plone.portal_registration
     pm = options.plone.portal_membership
+    md = options.plone.portal_memberdata
+    ms = options.plone.portal_membership
     members_ini = os.path.join(options.input_directory, 'members.ini')
 
     CP = ConfigParser()
@@ -98,10 +98,27 @@ def import_members(options):
 
     count = 0
     errors = list()
+
+    plone.api.group.create(groupname='CommunityMember',
+                           title='Community Members',
+                           roles=['Member'])
+
+    plone.api.group.create(groupname='BaWueTeacher',
+                           title='BaWue Teachers',
+                           roles=['Member'])
+
+
+    plone.api.group.create(groupname='UniversityEditor',
+                           title='University Editors',
+                           roles=['Member'])
+
     pr.addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
     for section in CP.sections()[:]:
         username = get(section, 'username')
+#        if username != 'mschmidt1':
+#            continue
+
         if len(username) == 1:
             username +='-2'
         elif len(username) == 2:
@@ -118,23 +135,69 @@ def import_members(options):
         if username.startswith('group_'):
             continue
         
-        roles = get(section, 'roles').split(',') + ['Member']
         try:
             plone.api.user.create(email=get(section, 'email'),
                                   username=username,
                                   password=get(section, 'password'),
-                                  roles=roles)
+                                  roles=('Member',))
+
+
         except ValueError as e:
             log('-> Error: %s' % e)
             continue
 
+        roles = get(section, 'roles').split(',') 
+        for role in roles:
+            role = role.strip()
+            if not role or role in ('Manager', 'Member'):
+                continue
+            plone.api.group.add_user(groupname=role, username=username)
 
         count += 1
         member = pm.getMemberById(username)
-        pm.createMemberArea(username)
-        member.setMemberProperties(dict(email=get(section, 'email'),
-                                        fullname=get(section, 'fullname'),
-                                  ))
+#        pm.createMemberArea(username)
+        vcard = json.loads(get(section, 'vcard'))
+        member_props = dict(email=get(section, 'email'),
+                            fullname=get(section, 'fullname'))
+
+        for k,v in vcard_props.items():
+            value = vcard.get(k)
+            if not value:
+                continue
+            
+            if v in ['db_projects', 'specialties', 'cooperation_interests', 'memberships', 'projects']:
+                if isinstance(value, list):
+                    member_props[v] = value
+                elif isinstance(value, basestring):
+                    member_props[v] = [value]
+
+            else:
+                if isinstance(value, basestring):
+                    member_props[v] = value
+
+
+        import pprint
+        pprint.pprint(member_props)
+        member.setMemberProperties(member_props)
+
+        try:
+            portrait_filename = get(section, 'portrait_filename')
+        except:
+            portrait_filename = None
+
+        if portrait_filename:
+            from OFS.Image import Image
+            from Products.PlonePAS.utils import scale_image
+
+            try:
+                scaled, mimetype = scale_image(open(portrait_filename, 'rb'))
+            except:
+                continue
+
+            portrait = Image(id=username, file=scaled, title='')
+            membertool = getToolByName(options.plone, 'portal_memberdata')
+            membertool._setPortrait(portrait, username)
+
     if errors:
         log('Errors')
         for e in errors:
@@ -168,8 +231,22 @@ def import_groups(options):
                                   
     log('%d groups imported' % count)
 
+def target_pt(default_portal_type, id_, dirname):
+
+    if default_portal_type in ('Event',):
+        return default_portal_type
+
+    if default_portal_type=='Medienbeitrag':
+        return 'eteaching.policy.podcastitem'
+
+    if id_.startswith('vodcast') or id_.startswith('podcast'):
+        return 'eteaching.policy.podcastchannel'
+
+    return default_portal_type
 
 def folder_create(root, dirname, portal_type):
+
+
 
     current = root
     components = dirname.split('/')
@@ -188,7 +265,8 @@ def folder_create(root, dirname, portal_type):
         if constrainsMode is not None:
             current.setConstrainTypesMode(0)
 
-        current.invokeFactory(PT_REPLACE_MAP.get(portal_type, portal_type), id=components[-1])
+        target_portal_type = target_pt('Folder', components[-1], dirname)
+        current.invokeFactory(target_portal_type, id=components[-1])
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
@@ -235,9 +313,8 @@ def setExcludeFromNav(obj, options):
     """ Force exclude from navigation for certain portal_types
         in the Plone root only.
     """
-    if obj.aq_parent.getId() == options.plone.getId() and \
-       obj.portal_type in ('File', 'Image', 'Page', 'Document', 'News Item'):
-        obj.setExcludeFromNav(True)
+    if obj.portal_type in ('File', 'Image'):
+        obj.exclude_from_nav = True
 
 def setObjectPosition(obj, position):
     try:
@@ -401,10 +478,10 @@ def create_new_obj(options, folder, old_uid):
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
+    if portal_type_ != 'Event':
+        return
     candidate = myRestrictedTraverse(options.plone, path_)
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
-        if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
-            return
         try:
             constrainsMode = folder.getConstrainTypesMode()
         except AttributeError:
@@ -413,7 +490,12 @@ def create_new_obj(options, folder, old_uid):
             folder.setConstrainTypesMode(0)
         pt = obj_data['metadata']['portal_type']
         if not id_ in folder.objectIds():
-            folder.invokeFactory(PT_REPLACE_MAP.get(pt, pt), id=id_)
+            target_portal_type = target_pt(pt, id_, id_)
+            try:
+                folder.invokeFactory(target_portal_type, id=id_)
+            except:
+                id_ = id_ + '-2'
+                folder.invokeFactory(target_portal_type, id=id_)
             if constrainsMode is not None:
                 folder.setConstrainTypesMode(constrainsMode)
         new_obj = folder[id_]
@@ -425,10 +507,11 @@ def create_new_obj(options, folder, old_uid):
         if k in ('title', 
                 'description', 
                 'remote_url',
-                'start', 
-                'end',
+                'location',
+                'event_url',
+                'subject',
                 'contact_email', 
-                'contact_phone', 
+                'contact_phone',
                 'contact_name'):
             setattr(new_obj, k, v)
             continue
@@ -437,13 +520,15 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('start', 'end'):
-            if isinstance(v, DateTime):
-                v = datetime.fromtimestamp(v.timeTime())
-            else:
-                v = None
-            setattr(new_obj, k, v)
-            continue
+        if portal_type_ == 'Event':
+            if k in ('start', 'end'):
+                from plone.event.interfaces import IEventAccessor
+                if isinstance(v, DateTime):
+                    new_obj.timezone = 'CET'
+                    acc = IEventAccessor(new_obj)
+                    v = v.asdatetime()
+                    setattr(acc, k, v)
+                    continue
 
         if k in ('image', 'file'):
             filename = '/'.join(v.split('/')[-3:])
@@ -458,17 +543,34 @@ def create_new_obj(options, folder, old_uid):
                 setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
                 continue
 
+        if portal_type_ == 'Medienbeitrag':
+
+            if k in ('subtitle', 'partner'):
+                setattr(new_obj, k, v)
+                continue
+
+            if k == 'media':
+                id_ = v.split('/')[-1]
+                id_ = id_.lower().replace('-', '_') # normalization
+                id_ = id_.replace('__', '_')
+                intid_util = getUtility(IIntIds)
+                media_items = options.plone['media-items']
+                if id_ in media_items.objectIds():
+                    media_item_intid = intid_util.getId(media_items[id_])
+                    new_obj.media = media_item_intid
+                continue
+
         if k not in ('content_type',):
             print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
-#    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
+    setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
     setReviewState(new_obj, obj_data['metadata']['review_state'])
 #    setLayout(new_obj, obj_data['metadata']['layout'])
 #    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
-#    setExcludeFromNav(new_obj, options)
+    setExcludeFromNav(new_obj, options)
 #    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
@@ -499,10 +601,8 @@ def import_content(options):
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
 
-        if portal_type in IGNORED_TYPES:
-            continue
         new_obj = folder_create(options.plone, path, portal_type)
-
+    
     transaction.savepoint()
 
     # Now recreate the child objects within
@@ -516,9 +616,7 @@ def import_content(options):
         else:
             path = CP.get(section, 'path')
 
-            if CP.get(section, 'portal_type') in IGNORED_TYPES:
-                continue
-            current = options.plone.restrictedTraverse(path)
+        current = options.plone.restrictedTraverse(path)
 
         for uid in uids:
             try:
@@ -582,6 +680,7 @@ def import_plone(app, options):
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
+    options.plone.restrictedTraverse('@@import-mediaitems')()
 #    import_groups(options)
 #    import_placeful_workflow(options)
     import_content(options)
