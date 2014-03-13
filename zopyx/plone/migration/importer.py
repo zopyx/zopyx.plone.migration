@@ -3,6 +3,7 @@
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
+import pytz
 import json
 import os
 import plone.api
@@ -231,6 +232,9 @@ def import_groups(options):
     log('%d groups imported' % count)
 
 def target_pt(default_portal_type, id_, dirname):
+
+    if default_portal_type in ('Event',):
+        return default_portal_type
 
     if default_portal_type=='Medienbeitrag':
         return 'eteaching.policy.podcastitem'
@@ -474,6 +478,8 @@ def create_new_obj(options, folder, old_uid):
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
+    if portal_type_ != 'Event':
+        return
     candidate = myRestrictedTraverse(options.plone, path_)
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
@@ -501,6 +507,9 @@ def create_new_obj(options, folder, old_uid):
         if k in ('title', 
                 'description', 
                 'remote_url',
+                'location',
+                'event_url',
+                'subject',
                 'contact_email', 
                 'contact_phone',
                 'contact_name'):
@@ -511,13 +520,15 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('start', 'end'):
-            if isinstance(v, DateTime):
-                v = datetime.fromtimestamp(v.timeTime())
-            else:
-                v = None
-            setattr(new_obj, k, v)
-            continue
+        if portal_type_ == 'Event':
+            if k in ('start', 'end'):
+                from plone.event.interfaces import IEventAccessor
+                if isinstance(v, DateTime):
+                    new_obj.timezone = 'CET'
+                    acc = IEventAccessor(new_obj)
+                    v = v.asdatetime()
+                    setattr(acc, k, v)
+                    continue
 
         if k in ('image', 'file'):
             filename = '/'.join(v.split('/')[-3:])
