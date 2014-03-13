@@ -533,12 +533,15 @@ def create_new_obj(options, folder, old_uid):
                 continue
 
         if portal_type_ == 'Medienbeitrag':
+
             if k in ('subtitle', 'partner'):
                 setattr(new_obj, k, v)
                 continue
 
             if k == 'media':
                 id_ = v.split('/')[-1]
+                id_ = id_.lower().replace('-', '_') # normalization
+                id_ = id_.replace('__', '_')
                 intid_util = getUtility(IIntIds)
                 media_items = options.plone['media-items']
                 if id_ in media_items.objectIds():
