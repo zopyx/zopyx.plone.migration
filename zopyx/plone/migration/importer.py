@@ -34,6 +34,7 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConf
 from plone.namedfile.field import NamedBlobFile, NamedBlobImage
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
+from plone.app.event.dx.behaviors import data_postprocessing
 from zope.intid.interfaces import IIntIds
 
 import sys
@@ -520,21 +521,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if portal_type_ == 'Event':
-            if k in ('start', 'end'):
-                from plone.event.interfaces import IEventAccessor
-#                if new_obj.getId() == 'ilias_2008':
-#                    import pdb; pdb.set_trace() 
-                if isinstance(v, DateTime):
-                    v = v.asdatetime()
-                    tz = str(v.tzinfo)
-                    if tz.startswith('GMT'):
-                        tz = 'Etc/%s' % tz
-#                    v = v.replace(tzinfo=pytz.timezone('UTC')) 
-                    new_obj.timezone = tz
-                    acc = IEventAccessor(new_obj)
-                    setattr(acc, k, v)
-                    continue
+
 
         if k in ('image', 'file'):
             filename = '/'.join(v.split('/')[-3:])
@@ -568,6 +555,26 @@ def create_new_obj(options, folder, old_uid):
 
         if k not in ('content_type',):
             print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
+
+    if portal_type_ == 'Event':
+        from plone.app.event.dx.behaviors import IEventBasic
+        start = obj_data['schemadata']['start']
+        end = obj_data['schemadata']['end']
+        if start:
+            start = start.asdatetime()
+            if end:
+                end = end.asdatetime()
+            tz = str(start.tzinfo)
+            if tz.startswith('GMT'):
+                tz = 'Etc/%s' % tz
+            ev = IEventBasic(new_obj)
+            if start:
+                ev.start = start
+            if end:
+                ev.end = end
+            ev.timezone = tz
+            data_postprocessing(new_obj, None)
+
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
