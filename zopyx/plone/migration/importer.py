@@ -523,10 +523,16 @@ def create_new_obj(options, folder, old_uid):
         if portal_type_ == 'Event':
             if k in ('start', 'end'):
                 from plone.event.interfaces import IEventAccessor
+#                if new_obj.getId() == 'ilias_2008':
+#                    import pdb; pdb.set_trace() 
                 if isinstance(v, DateTime):
-                    new_obj.timezone = 'CET'
-                    acc = IEventAccessor(new_obj)
                     v = v.asdatetime()
+                    tz = str(v.tzinfo)
+                    if tz.startswith('GMT'):
+                        tz = 'Etc/%s' % tz
+#                    v = v.replace(tzinfo=pytz.timezone('UTC')) 
+                    new_obj.timezone = tz
+                    acc = IEventAccessor(new_obj)
                     setattr(acc, k, v)
                     continue
 
