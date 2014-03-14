@@ -145,27 +145,29 @@ def export_members(options):
         print >>fp, 'email = %s' % member.getProperty('email')
         print >>fp, 'roles = %s' % ','.join(roles) 
 
-        portrait = membership.getPersonalPortrait(username)
-        try:
-            portrait_data = str(portrait._data)
-        except AttributeError:
-            portrait_data = None
-        if portrait_data:
-            portrait_fp = open(os.path.join(options.export_directory, 'member-portrait-%s.bin' % username), 'wb')
-            portrait_fp.write(portrait_data)
-            portrait_fp.close()
-            print >>fp, 'portrait_filename = eteaching/member-portrait-%s.bin' % username
-        else:
-            print >>fp, 'portrait_filename = '
-
         member_folder = members.get(username)
         vcard_data = dict()
         friends = []
         enemies = []
         if member_folder:
+
             if 'buddylist' in member_folder.objectIds():
                 friends = member_folder.buddylist.confirmedBuddies.buddies
                 enemies = member_folder.buddylist.blackListBuddies.buddies
+
+            if 'photo' in member_folder.objectIds():
+                try:
+                    portrait_data = str(member_folder.photo)
+                except AttributeError:
+                    portrait_data = None
+                if portrait_data:
+                    portrait_fp = open(os.path.join(options.export_directory, 'member-portrait-%s.bin' % username), 'wb')
+                    portrait_fp.write(portrait_data)
+                    portrait_fp.close()
+                    print >>fp, 'portrait_filename = eteaching/member-portrait-%s.bin' % username
+                else:
+                    print >>fp, 'portrait_filename = '
+
             if 'user' in member_folder.objectIds():
                 vcard = member_folder['user']
                 s = str(vcard)
@@ -289,7 +291,6 @@ def _getPositionInParent(obj):
 
     parent = aq_parent(aq_inner(obj))
     try:
-        print parent.getObjectPosition(obj.getId())
         return parent.getObjectPosition(obj.getId())
     except:
         return 0
@@ -409,6 +410,9 @@ def export_content(options):
                 obj_data['schemadata']['contact_email'] = obj.contact_email
                 obj_data['schemadata']['contact_name'] = obj.contact_name
                 obj_data['schemadata']['contact_phone'] = obj.contact_phone
+                obj_data['schemadata']['location'] = obj.location
+                obj_data['schemadata']['event_url'] = obj.event_url
+                obj_data['schemadata']['subject'] = obj.subject
             print obj_data
 
         obj_data['metadata']['id'] = obj.getId()
