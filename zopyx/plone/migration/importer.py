@@ -4,6 +4,7 @@
 ################################################################
 
 import pytz
+import time
 import json
 import os
 import plone.api
@@ -86,6 +87,13 @@ def import_placeful_workflow(options):
         log('Imported %s' % zexp)
 
 def import_members(options):
+
+    def addMember(username, password, roles):
+        try:
+            pr.addMember(username, password, roles=roles)
+        except ValueError as e:
+            print 'User exists: {}, {}'.format(username, e)
+
     log('Importing members')
     pr = options.plone.portal_registration
     pm = options.plone.portal_membership
@@ -113,10 +121,16 @@ def import_members(options):
                            title='University Editors',
                            roles=['Member'])
 
-    pr.addMember('dummyadmin', 'dummyadmin', roles=('Member',))
+    addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
     for section in CP.sections()[:]:
+
         username = get(section, 'username')
+        print username
+
+        if options.plone.acl_users.getUser(username):
+            continue
+
 #        if username != 'mschmidt1':
 #            continue
 
@@ -135,16 +149,23 @@ def import_members(options):
         # omit group accounts
         if username.startswith('group_'):
             continue
-        
-        try:
-            plone.api.user.create(email=get(section, 'email'),
-                                  username=username,
-                                  password=get(section, 'password'),
-                                  roles=('Member',))
 
+        created = False
+        for i in range(1, 4):
+            try:
+                time.sleep(0.1)
+                plone.api.user.create(email=get(section, 'email'),
+                                      username=username,
+                                      password=get(section, 'password'),
+                                      roles=('Member',))
 
-        except ValueError as e:
-            log('-> Error: %s' % e)
+                created = True
+            except (AttributeError, ValueError) as e:
+                log('-> Error: %s' % e)
+                continue
+
+        if not created:
+            print 'Unable to create account {}'.format(username)
             continue
 
         roles = get(section, 'roles').split(',') 
@@ -179,7 +200,8 @@ def import_members(options):
 
         import pprint
         pprint.pprint(member_props)
-        member.setMemberProperties(member_props)
+        if member is not None:
+            member.setMemberProperties(member_props)
 
         try:
             portrait_filename = get(section, 'portrait_filename')
