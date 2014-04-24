@@ -715,7 +715,7 @@ def import_plone(app, options):
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
-    options.plone.restrictedTraverse('@@import-mediaitems')()
+    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
 #    import_groups(options)
 #    import_placeful_workflow(options)
     import_content(options)
