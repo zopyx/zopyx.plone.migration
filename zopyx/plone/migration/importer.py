@@ -501,8 +501,6 @@ def create_new_obj(options, folder, old_uid):
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
-    if portal_type_ != 'Event':
-        return
     candidate = myRestrictedTraverse(options.plone, path_)
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
@@ -542,8 +540,6 @@ def create_new_obj(options, folder, old_uid):
         if k in ('text',):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
-
-
 
         if k in ('image', 'file'):
             filename = '/'.join(v.split('/')[-3:])
