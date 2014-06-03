@@ -17,6 +17,7 @@ import cPickle
 import shutil
 import lxml.html
 import magic
+import ldap
 from zope.component import getUtility
 from optparse import OptionParser
 from datetime import datetime
@@ -61,6 +62,21 @@ vcard_props = {
 }
 
 IGNORED_FIELDS = ('id', 'relatedItems')
+
+
+MAP_UNIVERSITY_STATUS = {
+    'Uni': 'university',
+    'Fachhochschule': 'college',
+    'Kunst- und Musikhochschule': 'academy_of_arts',
+    'Hochschulverbund': 'university_partnership',
+    'Forschungseinrichtung': 'research_institute',
+    'Vorgeschlagene Forschungseinrichtung': 'suggested_research_institute',
+    'Sonstiges (Kein besonderer Ort)': 'other',
+}
+
+
+
+
 
 def import_placeful_workflow(options):
 
@@ -201,7 +217,10 @@ def import_members(options):
         import pprint
         pprint.pprint(member_props)
         if member is not None:
-            member.setMemberProperties(member_props)
+            try:
+                member.setMemberProperties(member_props)
+            except ldap.DECODING_ERROR:
+                pass
 
         try:
             portrait_filename = get(section, 'portrait_filename')
@@ -261,6 +280,9 @@ def target_pt(default_portal_type, id_, dirname):
 
     if default_portal_type=='Medienbeitrag':
         return 'eteaching.policy.podcastitem'
+
+    if default_portal_type == 'ETGeoLocation':
+        return 'eteaching.policy.geolocation'
 
     if id_.startswith('vodcast') or id_.startswith('podcast'):
         return 'eteaching.policy.podcastchannel'
@@ -497,11 +519,18 @@ def create_new_obj(options, folder, old_uid):
     pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
     if not os.path.exists(pickle_filename):
         return
+
+
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
+
+
+    if portal_type_ != 'ETGeoLocation':
+        return
+
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
             constrainsMode = folder.getConstrainTypesMode()
@@ -543,16 +572,49 @@ def create_new_obj(options, folder, old_uid):
 
         if k in ('image', 'file'):
             filename = '/'.join(v.split('/')[-3:])
-            v = open(filename, 'rb').read()
-            mt = magic.from_buffer(v, True)
-            ext = mt.split('/')[-1]
-            filename = u'{}.{}'.format(new_obj.getId(), ext)
-            if new_obj.portal_type == 'Image':
-                setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename))
+            filename = os.path.join(options.input_directory, '..', filename)
+            if os.path.exists(filename):
+                v = open(filename, 'rb').read()
+                mt = magic.from_buffer(v, True)
+                ext = mt.split('/')[-1]
+                filename = u'{}.{}'.format(new_obj.getId(), ext)
+                if new_obj.portal_type == 'Image':
+                    setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename))
+                    continue
+                elif new_obj.portal_type == 'File':
+                    setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+                    continue
+            else:
+                log('No .bin file found %s' % filename)
+                import pdb; pdb.set_trace() 
                 continue
-            elif new_obj.portal_type == 'File':
-                setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+
+        if portal_type_ == 'ETGeoLocation':
+            if k == 'geoBreite':
+                new_obj.lat = v
                 continue
+            if k == 'geoBundesland':
+                new_obj.state= v
+                continue
+            if k == 'geoCountryCode':
+                new_obj.country = v
+                continue
+            if k == 'geoLaenge':
+                new_obj.long = v
+                continue
+            if k == 'geoPlz':
+                new_obj.postcode= v
+                continue
+            if k == 'geoStadt':
+                new_obj.city = v
+                continue
+            if k == 'status':
+                new_obj.university_status = [MAP_UNIVERSITY_STATUS[v]]
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+
 
         if portal_type_ == 'Medienbeitrag':
 
@@ -710,8 +772,8 @@ def import_plone(app, options):
 
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
-    import_members(options)
-    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
+#    import_members(options)
+#    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
 #    import_groups(options)
 #    import_placeful_workflow(options)
     import_content(options)
