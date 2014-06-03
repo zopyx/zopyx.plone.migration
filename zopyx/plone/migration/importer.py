@@ -74,8 +74,29 @@ MAP_UNIVERSITY_STATUS = {
     'Sonstiges (Kein besonderer Ort)': 'other',
 }
 
+MAP_FACULTY = {
+    'Agrar- und Forstwissenschaft'        :    'agrarian_economy',  
+    'Geistes- und Sozialwissenschaften'   :    'humanities',        
+    'Geowissenschaft'                     :    'geosciences',       
+    'Informatik'                          :    'informatics',       
+    'Ingenieurswissenschaften'            :    'engineering',       
+    'Kunst, Design und Medienwissenschaft':    'media_studies',     
+    'Medizin und Gesundheitswesen'        :    'medical_science',   
+    'Naturwissenschaft und Mathematik'    :    'natural_science',   
+    'Rechtswissenschaft'                  :    'law',               
+    'Sportwissenschaft'                   :    'sport_science',     
+    'Sprachen und Sprachwissenschaft'     :    'linguistics',       
+    'Wirtschaftswissenschaften'           :    'economic_sciences', 
+    'Sonstiges'                           :    'other'              
+}
 
-
+MAP_CATEGORY = {
+    'Lernumgebung':                 'learning_environment',
+    'Lernmaterial':      'learning_material',
+    'Lernmaterial(-sammlung)':      'learning_material',
+    'Software':                     'software',
+    'Lehr-/Lernszenario':           'learning_scenario'
+}
 
 
 def import_placeful_workflow(options):
@@ -283,6 +304,15 @@ def target_pt(default_portal_type, id_, dirname):
 
     if default_portal_type == 'ETGeoLocation':
         return 'eteaching.policy.geolocation'
+
+    if default_portal_type == 'Projektdarstellung':
+        return 'eteaching.policy.project'
+
+    if default_portal_type == 'PeleBlog':
+        return 'eteaching.policy.blogentry'
+
+    if default_portal_type == 'PraxisBericht':
+        return 'eteaching.policy.experiencereport'
 
     if id_.startswith('vodcast') or id_.startswith('podcast'):
         return 'eteaching.policy.podcastchannel'
@@ -528,7 +558,7 @@ def create_new_obj(options, folder, old_uid):
     candidate = myRestrictedTraverse(options.plone, path_)
 
 
-    if portal_type_ != 'ETGeoLocation':
+    if portal_type_ not in ('ETGeoLocation', 'PraxisBericht', 'Projektdarstellung'):
         return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
@@ -570,7 +600,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('image', 'file'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
             if os.path.exists(filename):
@@ -584,10 +614,60 @@ def create_new_obj(options, folder, old_uid):
                 elif new_obj.portal_type == 'File':
                     setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
                     continue
+                elif new_obj.portal_type == 'eteaching.policy.experiencereport':
+                    if k == 'projekt_foto':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                    if k == 'projekt_banner':
+                        new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+
             else:
                 log('No .bin file found %s' % filename)
                 import pdb; pdb.set_trace() 
                 continue
+
+        if portal_type_ == 'Projektdarstellung':
+            if k == 'projektTeam':
+                new_obj.team = v
+                continue
+            if k == 'projektstart' and v:
+                new_obj.start = v.asdatetime()
+                continue
+            if k == 'projektend' and v:
+                new_obj.end = v.asdatetime()
+                continue
+            if k == 'url':
+                if not v.startswith('http'):
+                    v = 'http://' + v
+                new_obj.url = v
+                continue
+            if k == 'langbeschreibung':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'fachbereich':
+                new_obj.faculty = [MAP_FACULTY[x] for x in v]
+                continue
+            if k == 'kategorie':
+                new_obj.category = MAP_CATEGORY.get(v)
+                continue
+
+        if portal_type_ == 'PraxisBericht':
+            if k == 'anmoderation':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
+            if k == 'PDFBericht':
+                new_obj.invokeFactory('eteaching.policy.mediadocument', id='bericht')
+                bericht = new_obj['bericht']
+                bericht.title = u'Bericht'
+                bericht.display_title = u'Bericht'
+                bericht.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                bericht.reindexObject()
+                intid_util = getUtility(IIntIds)
+                bericht_intid = intid_util.getId(bericht)
+                new_obj.media_documents = [bericht_intid]
+
 
         if portal_type_ == 'ETGeoLocation':
             if k == 'geoBreite':
