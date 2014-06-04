@@ -8,6 +8,7 @@ import time
 import json
 import os
 import plone.api
+import datetime
 import shutil
 import tempfile
 import glob
@@ -303,7 +304,7 @@ def target_pt(default_portal_type, id_, dirname):
         return 'eteaching.policy.podcastitem'
 
     if default_portal_type == 'ETGeoLocation':
-        return 'eteaching.policy.geolocation'
+        return 'eteaching.policy.location'
 
     if default_portal_type == 'Projektdarstellung':
         return 'eteaching.policy.project'
@@ -550,13 +551,11 @@ def create_new_obj(options, folder, old_uid):
     if not os.path.exists(pickle_filename):
         return
 
-
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
-
 
     if portal_type_ not in ('ETGeoLocation', 'PraxisBericht', 'Projektdarstellung'):
         return
@@ -632,10 +631,10 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.team = v
                 continue
             if k == 'projektstart' and v:
-                new_obj.start = v.asdatetime()
+                new_obj.start = datetime(v.year(), v. month(), v.day())
                 continue
-            if k == 'projektend' and v:
-                new_obj.end = v.asdatetime()
+            if k == 'projektende' and v:
+                new_obj.end = datetime(v.year(), v. month(), v.day())
                 continue
             if k == 'url':
                 if not v.startswith('http'):
@@ -649,7 +648,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.faculty = [MAP_FACULTY[x] for x in v]
                 continue
             if k == 'kategorie':
-                new_obj.category = MAP_CATEGORY.get(v)
+                new_obj.category = [MAP_CATEGORY.get(v)]
                 continue
 
         if portal_type_ == 'PraxisBericht':
@@ -747,6 +746,39 @@ def create_new_obj(options, folder, old_uid):
 #    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
+def fixup_geolocation(options):
+
+    structure_ini = os.path.join(options.input_directory, 'content.ini')
+    CP = ConfigParser()
+    CP.read([structure_ini])
+    get = CP.get
+
+    sections = CP.sections()
+
+    # Now recreate the child objects within
+    log('Fixup geolocation')
+    for i, section in enumerate(sections):
+        portal_type = CP.get(section, 'portal_type')
+        print i, section, portal_type
+        if portal_type in ('Projektdarstellung', 'PraxisBericht'):
+            path_ = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path_)
+            print path_, obj
+            old_uid = CP.get(section, 'uid')
+            pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+            obj_data = cPickle.load(file(pickle_filename))
+            schemadata = obj_data['schemadata']
+            institutsLocation = schemadata['institutsLocation']
+            brains = options.plone.portal_catalog(getId=institutsLocation)
+            intid_util = getUtility(IIntIds)
+            if brains:
+                geo_id  = intid_util.getId(brains[0].getObject())
+                obj.location_reference = [geo_id]
+            else:
+                print 'no GEO object found {}'.format(institutsLocation)
+
+
+    transaction.savepoint()
 
 def import_content(options):
 
@@ -857,7 +889,11 @@ def import_plone(app, options):
 #    import_groups(options)
 #    import_placeful_workflow(options)
     import_content(options)
+    fixup_geolocation(options)
 #    fixup_uids(options)
+
+    options.plone.restrictedTraverse('@@rebuild-backreferences')()
+
     return plone.absolute_url(1)
 
 def import_site(options):
