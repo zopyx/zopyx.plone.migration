@@ -416,6 +416,7 @@ def export_content(options):
                 obj_data['schemadata']['contact_phone'] = obj.contact_phone
                 obj_data['schemadata']['location'] = obj.location
                 obj_data['schemadata']['event_url'] = obj.event_url
+                obj_data['schemadata']['timezone'] = obj.timezone
                 obj_data['schemadata']['subject'] = obj.subject
             print obj_data
 
