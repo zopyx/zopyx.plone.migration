@@ -4,6 +4,7 @@
 ################################################################
 
 import pytz
+import time
 import json
 import os
 import plone.api
@@ -16,6 +17,7 @@ import cPickle
 import shutil
 import lxml.html
 import magic
+import ldap
 from zope.component import getUtility
 from optparse import OptionParser
 from datetime import datetime
@@ -34,6 +36,7 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConf
 from plone.namedfile.field import NamedBlobFile, NamedBlobImage
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
+from plone.app.event.dx.behaviors import data_postprocessing
 from zope.intid.interfaces import IIntIds
 
 import sys
@@ -60,6 +63,42 @@ vcard_props = {
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 
+
+MAP_UNIVERSITY_STATUS = {
+    'Uni': 'university',
+    'Fachhochschule': 'college',
+    'Kunst- und Musikhochschule': 'academy_of_arts',
+    'Hochschulverbund': 'university_partnership',
+    'Forschungseinrichtung': 'research_institute',
+    'Vorgeschlagene Forschungseinrichtung': 'suggested_research_institute',
+    'Sonstiges (Kein besonderer Ort)': 'other',
+}
+
+MAP_FACULTY = {
+    'Agrar- und Forstwissenschaft'        :    'agrarian_economy',  
+    'Geistes- und Sozialwissenschaften'   :    'humanities',        
+    'Geowissenschaft'                     :    'geosciences',       
+    'Informatik'                          :    'informatics',       
+    'Ingenieurswissenschaften'            :    'engineering',       
+    'Kunst, Design und Medienwissenschaft':    'media_studies',     
+    'Medizin und Gesundheitswesen'        :    'medical_science',   
+    'Naturwissenschaft und Mathematik'    :    'natural_science',   
+    'Rechtswissenschaft'                  :    'law',               
+    'Sportwissenschaft'                   :    'sport_science',     
+    'Sprachen und Sprachwissenschaft'     :    'linguistics',       
+    'Wirtschaftswissenschaften'           :    'economic_sciences', 
+    'Sonstiges'                           :    'other'              
+}
+
+MAP_CATEGORY = {
+    'Lernumgebung':                 'learning_environment',
+    'Lernmaterial':      'learning_material',
+    'Lernmaterial(-sammlung)':      'learning_material',
+    'Software':                     'software',
+    'Lehr-/Lernszenario':           'learning_scenario'
+}
+
+
 def import_placeful_workflow(options):
 
     import_dir = os.path.join(options.input_directory, 'placeful_workflow')
@@ -85,6 +124,13 @@ def import_placeful_workflow(options):
         log('Imported %s' % zexp)
 
 def import_members(options):
+
+    def addMember(username, password, roles):
+        try:
+            pr.addMember(username, password, roles=roles)
+        except ValueError as e:
+            print 'User exists: {}, {}'.format(username, e)
+
     log('Importing members')
     pr = options.plone.portal_registration
     pm = options.plone.portal_membership
@@ -112,10 +158,16 @@ def import_members(options):
                            title='University Editors',
                            roles=['Member'])
 
-    pr.addMember('dummyadmin', 'dummyadmin', roles=('Member',))
+    addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
     for section in CP.sections()[:]:
+
         username = get(section, 'username')
+        print username
+
+        if options.plone.acl_users.getUser(username):
+            continue
+
 #        if username != 'mschmidt1':
 #            continue
 
@@ -134,16 +186,23 @@ def import_members(options):
         # omit group accounts
         if username.startswith('group_'):
             continue
-        
-        try:
-            plone.api.user.create(email=get(section, 'email'),
-                                  username=username,
-                                  password=get(section, 'password'),
-                                  roles=('Member',))
 
+        created = False
+        for i in range(1, 4):
+            try:
+                time.sleep(0.1)
+                plone.api.user.create(email=get(section, 'email'),
+                                      username=username,
+                                      password=get(section, 'password'),
+                                      roles=('Member',))
 
-        except ValueError as e:
-            log('-> Error: %s' % e)
+                created = True
+            except (AttributeError, ValueError) as e:
+                log('-> Error: %s' % e)
+                continue
+
+        if not created:
+            print 'Unable to create account {}'.format(username)
             continue
 
         roles = get(section, 'roles').split(',') 
@@ -178,7 +237,11 @@ def import_members(options):
 
         import pprint
         pprint.pprint(member_props)
-        member.setMemberProperties(member_props)
+        if member is not None:
+            try:
+                member.setMemberProperties(member_props)
+            except ldap.DECODING_ERROR:
+                pass
 
         try:
             portrait_filename = get(section, 'portrait_filename')
@@ -238,6 +301,18 @@ def target_pt(default_portal_type, id_, dirname):
 
     if default_portal_type=='Medienbeitrag':
         return 'eteaching.policy.podcastitem'
+
+    if default_portal_type == 'ETGeoLocation':
+        return 'eteaching.policy.geolocation'
+
+    if default_portal_type == 'Projektdarstellung':
+        return 'eteaching.policy.project'
+
+    if default_portal_type == 'PeleBlog':
+        return 'eteaching.policy.blogentry'
+
+    if default_portal_type == 'PraxisBericht':
+        return 'eteaching.policy.experiencereport'
 
     if id_.startswith('vodcast') or id_.startswith('podcast'):
         return 'eteaching.policy.podcastchannel'
@@ -474,13 +549,18 @@ def create_new_obj(options, folder, old_uid):
     pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
     if not os.path.exists(pickle_filename):
         return
+
+
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
-    if portal_type_ != 'Event':
-        return
     candidate = myRestrictedTraverse(options.plone, path_)
+
+
+    if portal_type_ not in ('ETGeoLocation', 'PraxisBericht', 'Projektdarstellung'):
+        return
+
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
             constrainsMode = folder.getConstrainTypesMode()
@@ -520,28 +600,101 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if portal_type_ == 'Event':
-            if k in ('start', 'end'):
-                from plone.event.interfaces import IEventAccessor
-                if isinstance(v, DateTime):
-                    new_obj.timezone = 'CET'
-                    acc = IEventAccessor(new_obj)
-                    v = v.asdatetime()
-                    setattr(acc, k, v)
-                    continue
-
-        if k in ('image', 'file'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner'):
             filename = '/'.join(v.split('/')[-3:])
-            v = open(filename, 'rb').read()
-            mt = magic.from_buffer(v, True)
-            ext = mt.split('/')[-1]
-            filename = u'{}.{}'.format(new_obj.getId(), ext)
-            if new_obj.portal_type == 'Image':
-                setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename))
+            filename = os.path.join(options.input_directory, '..', filename)
+            if os.path.exists(filename):
+                v = open(filename, 'rb').read()
+                mt = magic.from_buffer(v, True)
+                ext = mt.split('/')[-1]
+                filename = u'{}.{}'.format(new_obj.getId(), ext)
+                if new_obj.portal_type == 'Image':
+                    setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename))
+                    continue
+                elif new_obj.portal_type == 'File':
+                    setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+                    continue
+                elif new_obj.portal_type == 'eteaching.policy.experiencereport':
+                    if k == 'projekt_foto':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                    if k == 'projekt_banner':
+                        new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+
+            else:
+                log('No .bin file found %s' % filename)
+                import pdb; pdb.set_trace() 
                 continue
-            elif new_obj.portal_type == 'File':
-                setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+
+        if portal_type_ == 'Projektdarstellung':
+            if k == 'projektTeam':
+                new_obj.team = v
                 continue
+            if k == 'projektstart' and v:
+                new_obj.start = v.asdatetime()
+                continue
+            if k == 'projektend' and v:
+                new_obj.end = v.asdatetime()
+                continue
+            if k == 'url':
+                if not v.startswith('http'):
+                    v = 'http://' + v
+                new_obj.url = v
+                continue
+            if k == 'langbeschreibung':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'fachbereich':
+                new_obj.faculty = [MAP_FACULTY[x] for x in v]
+                continue
+            if k == 'kategorie':
+                new_obj.category = MAP_CATEGORY.get(v)
+                continue
+
+        if portal_type_ == 'PraxisBericht':
+            if k == 'anmoderation':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
+            if k == 'PDFBericht':
+                new_obj.invokeFactory('eteaching.policy.mediadocument', id='bericht')
+                bericht = new_obj['bericht']
+                bericht.title = u'Bericht'
+                bericht.display_title = u'Bericht'
+                bericht.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                bericht.reindexObject()
+                intid_util = getUtility(IIntIds)
+                bericht_intid = intid_util.getId(bericht)
+                new_obj.media_documents = [bericht_intid]
+
+
+        if portal_type_ == 'ETGeoLocation':
+            if k == 'geoBreite':
+                new_obj.lat = v
+                continue
+            if k == 'geoBundesland':
+                new_obj.state= v
+                continue
+            if k == 'geoCountryCode':
+                new_obj.country = v
+                continue
+            if k == 'geoLaenge':
+                new_obj.long = v
+                continue
+            if k == 'geoPlz':
+                new_obj.postcode= v
+                continue
+            if k == 'geoStadt':
+                new_obj.city = v
+                continue
+            if k == 'status':
+                new_obj.university_status = [MAP_UNIVERSITY_STATUS[v]]
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+
 
         if portal_type_ == 'Medienbeitrag':
 
@@ -562,6 +715,26 @@ def create_new_obj(options, folder, old_uid):
 
         if k not in ('content_type',):
             print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
+
+    if portal_type_ == 'Event':
+        from plone.app.event.dx.behaviors import IEventBasic
+        start = obj_data['schemadata']['start']
+        end = obj_data['schemadata']['end']
+        if start:
+            start = start.asdatetime()
+            if end:
+                end = end.asdatetime()
+            tz = str(start.tzinfo)
+            if tz.startswith('GMT'):
+                tz = 'Etc/%s' % tz
+            ev = IEventBasic(new_obj)
+            if start:
+                ev.start = start
+            if end:
+                ev.end = end
+            ev.timezone = tz
+            data_postprocessing(new_obj, None)
+
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
@@ -679,8 +852,8 @@ def import_plone(app, options):
 
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
-    import_members(options)
-    options.plone.restrictedTraverse('@@import-mediaitems')()
+#    import_members(options)
+#    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
 #    import_groups(options)
 #    import_placeful_workflow(options)
     import_content(options)

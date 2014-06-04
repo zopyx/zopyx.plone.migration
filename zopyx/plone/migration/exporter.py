@@ -335,6 +335,8 @@ def export_content(options):
     stats = dict()
     num_brains = len(brains)
     for i, brain in enumerate(brains):
+        bin_count = 0
+
         if options.verbose:
             log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
         try:
@@ -375,7 +377,8 @@ def export_content(options):
                 cls_ = str(field.__class__)
                 if name in ('image', 'file', 'logo', 'themengrafik', 'datei', 'hp_foto', 'eteacher_foto') or 'ImageField' in cls_ or 'FileField' in cls_:
                     print name
-                    ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
+                    bin_count += 1
+                    ext_filename = os.path.join(export_dir, '%s-%d.bin' % (_getUID(obj), bin_count))
                     extfp = file(ext_filename, 'wb')
                     try:
                         data = str(value.data)
@@ -384,7 +387,7 @@ def export_content(options):
                     if data:
                         extfp.write(data)
                     extfp.close()
-                    value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
+                    value = 'file://%s/%s-%d.bin' % (os.path.abspath(export_dir), _getUID(obj), bin_count)
                 elif name == 'relatedItems':
                     value = [_getUID(rel_item) for rel_item in value]
                 obj_data['schemadata'][name] = value
@@ -392,11 +395,12 @@ def export_content(options):
             obj_data['schemadata']['title'] = obj.title
             obj_data['schemadata']['description'] = obj.description
             if obj.portal_type in ('Image', 'File'):
-                ext_filename = os.path.join(export_dir, '%s.bin' % _getUID(obj))
+                bin_count += 1
+                ext_filename = os.path.join(export_dir, '%s-%d.bin' % (_getUID(obj), bin_count))
                 extfp = file(ext_filename, 'wb')
                 extfp.write(str(obj.data))
                 extfp.close()
-                value = 'file://%s/%s.bin' % (os.path.abspath(export_dir), _getUID(obj))
+                value = 'file://%s/%s-%d.bin' % (os.path.abspath(export_dir), _getUID(obj), bin_count)
                 obj_data['schemadata'][obj.portal_type.lower()] = value
             elif obj.portal_type in ('Document',):
                 obj_data['schemadata']['text'] = obj.text
