@@ -300,6 +300,9 @@ def target_pt(default_portal_type, id_, dirname):
     if default_portal_type in ('Event',):
         return default_portal_type
 
+    if default_portal_type in ('Steckbrief',):
+        return 'eteaching.policy.testreport'
+
     if default_portal_type=='Literatur':
         return 'eteaching.policy.literature'
 
@@ -569,7 +572,7 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
-    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur'):
+    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur', 'Steckbrief'):
         return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
@@ -611,7 +614,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
             if os.path.exists(filename):
@@ -640,6 +643,13 @@ def create_new_obj(options, folder, old_uid):
                     if k == 'screenshot':
                         new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
                         continue
+                elif new_obj.portal_type == 'eteaching.policy.testreport':
+                    if k == 'logo':
+                        new_obj.logo = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                    if k == 'screenshot':
+                        new_obj.screenshot = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
 
 
             else:
@@ -650,6 +660,36 @@ def create_new_obj(options, folder, old_uid):
         if portal_type_ == 'Glossar':
             if k == 'body':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
+        if portal_type_ == 'Steckbrief':
+            _map = { 'produktbeschreibung': 'text',
+                    'vorteile': 'pros',
+                    'nachteile': 'cons',
+                    'beispiele': 'examples',
+                    'formate': 'file_formats',
+                    'getestete version': 'tested_version',
+                    'hersteller': 'producer',
+                    'preis': 'price',
+                    'windows': 'windows',
+                    'macintosh': 'macintosh',
+                    'unix': 'unix',
+                    'sonstige plattform': 'other_os',
+                    'weitere anforderungen': 'requirements',
+                    'einstiegslevel': 'entry_level',
+                    'tutorials': 'tutorials',
+                    'hinweise': 'hints',
+                    'alternativen': 'alternatives', }
+
+            if k in _map:
+                setattr(new_obj, _map[k], RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
+                continue
+
+            if k == 'plattform':
+                new_obj.supported_os = v
+                continue
+            if k == 'produktkategorie':
+                new_obj.category= v
                 continue
 
         if portal_type_ == 'Projektdarstellung':
