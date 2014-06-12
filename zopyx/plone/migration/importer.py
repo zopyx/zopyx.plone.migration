@@ -441,7 +441,12 @@ def fix_resolve_uids(obj, options):
             raise TypeError('"node_names" must be a list or tuple (not %s)' % type(node_names))
         return './/*[%s]' % ' or '.join(['name()="%s"' % name for name in node_names])
 
-    html = obj.getRawText()
+    try:
+        html = obj.getRawText()
+    except AttributeError:
+        print 'Unable to fix uuids for %s' % (obj.absolute_url(), obj.portal_type)
+        return
+   
     if not isinstance(html, unicode):
         html = unicode(html, 'utf-8')
     try:
