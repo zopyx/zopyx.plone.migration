@@ -300,8 +300,17 @@ def target_pt(default_portal_type, id_, dirname):
     if default_portal_type in ('Event',):
         return default_portal_type
 
+    if default_portal_type in ('ETEvent',):
+        return 'eteaching.policy.onlineevent'
+
     if default_portal_type in ('Steckbrief',):
         return 'eteaching.policy.testreport'
+
+    if default_portal_type in ('Partition',):
+        return 'Folder'
+
+    if default_portal_type=='ThemenSpecial':
+        return 'eteaching.policy.special'
 
     if default_portal_type=='Literatur':
         return 'eteaching.policy.literature'
@@ -572,7 +581,7 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
-    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur', 'Steckbrief'):
+    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur', 'Steckbrief', 'Partition', 'ThemenSpecial', 'ETEvent'):
         return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
@@ -614,7 +623,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo', 'themengrafik'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
             if os.path.exists(filename):
@@ -650,7 +659,17 @@ def create_new_obj(options, folder, old_uid):
                     if k == 'screenshot':
                         new_obj.screenshot = namedfile.NamedBlobFile(v, filename=filename)
                         continue
-
+                elif new_obj.portal_type == 'eteaching.policy.special':
+                    if k == 'themengrafik':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                elif new_obj.portal_type == 'eteaching.policy.onlineevent':
+                    if k == 'event_foto':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                    if k == 'event_foto_sw':
+                        new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
 
             else:
                 log('No .bin file found %s' % filename)
@@ -747,6 +766,11 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.url = v
                 continue
 
+        if portal_type_ == 'ThemenSpecial':
+            if k == 'intro_text':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
         if portal_type_ == 'Literatur':
             if k == 'publikationsautor':
                 new_obj.author = v
@@ -832,6 +856,34 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.technology = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
 
+        if portal_type_ == 'ETEvent':
+            if k == 'status':
+                new_obj.status = v
+                continue
+            if k == 'typ':
+                new_obj.type = v
+                continue
+            if k == 'datum':
+                new_obj.start = v
+                continue
+            if k == 'experte':
+                new_obj.expert = v
+                continue
+            if k == 'beschreibung':
+                new_obj.text_future = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'kurzbeschreibung_vergangen':
+                new_obj.text_past = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'link_event':
+                new_obj.link_event = v
+                continue
+            if k == 'code_schnipsel':
+                new_obj.code_snippets = v
+                continue
+            if k == 'folien':
+                new_obj.slides = [item.split(';') for item in v]
+                continue
 
         if portal_type_ == 'ETGeoLocation':
             if k == 'geoBreite':
