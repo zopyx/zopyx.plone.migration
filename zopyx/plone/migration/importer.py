@@ -581,8 +581,8 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
-    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur', 'Steckbrief', 'Partition', 'ThemenSpecial', 'ETEvent'):
-        return
+#    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur', 'Steckbrief', 'Partition', 'ThemenSpecial', 'ETEvent'):
+#        return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
@@ -1109,14 +1109,14 @@ def import_plone(app, options):
 
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
-#    import_members(options)
-#    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
-#    import_groups(options)
-#    import_placeful_workflow(options)
+    import_members(options)
+    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
+    import_groups(options)
+    import_placeful_workflow(options)
     import_content(options)
 #    import_blog_entries(options)
     fixup_geolocation(options)
-#    fixup_uids(options)
+    fixup_uids(options)
 
     options.plone.restrictedTraverse('@@rebuild-backreferences')()
 
