@@ -444,7 +444,7 @@ def fix_resolve_uids(obj, options):
     try:
         html = obj.getRawText()
     except AttributeError:
-        print 'Unable to fix uuids for %s' % (obj.absolute_url(), obj.portal_type)
+        print 'Unable to fix uuids for %s %s' % (obj.absolute_url(), obj.portal_type)
         return
    
     if not isinstance(html, unicode):
