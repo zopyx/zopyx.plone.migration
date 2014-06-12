@@ -300,6 +300,18 @@ def target_pt(default_portal_type, id_, dirname):
     if default_portal_type in ('Event',):
         return default_portal_type
 
+    if default_portal_type=='Literatur':
+        return 'eteaching.policy.literature'
+
+    if default_portal_type=='Glossar':
+        return 'eteaching.policy.glossaryterm'
+    
+    if default_portal_type=='Referenzbeispiel':
+        return 'eteaching.policy.referenceexample'
+
+    if default_portal_type=='Hochschulinfo':
+        return 'eteaching.policy.location'
+
     if default_portal_type=='Medienbeitrag':
         return 'eteaching.policy.podcastitem'
 
@@ -557,7 +569,7 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
-    if portal_type_ not in ('ETGeoLocation', 'PraxisBericht', 'Projektdarstellung'):
+    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur'):
         return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
@@ -599,7 +611,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('image', 'file', 'projekt_foto', 'projekt_banner'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
             if os.path.exists(filename):
@@ -620,10 +632,24 @@ def create_new_obj(options, folder, old_uid):
                     if k == 'projekt_banner':
                         new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=filename)
                         continue
+                elif new_obj.portal_type == 'eteaching.policy.location':
+                    if k == 'hslogo':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                elif new_obj.portal_type == 'eteaching.policy.referenceexample':
+                    if k == 'screenshot':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+
 
             else:
                 log('No .bin file found %s' % filename)
                 import pdb; pdb.set_trace() 
+                continue
+
+        if portal_type_ == 'Glossar':
+            if k == 'body':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
 
         if portal_type_ == 'Projektdarstellung':
@@ -666,6 +692,105 @@ def create_new_obj(options, folder, old_uid):
                 intid_util = getUtility(IIntIds)
                 bericht_intid = intid_util.getId(bericht)
                 new_obj.media_documents = [bericht_intid]
+
+        if portal_type_ == 'Hochschulinfo':
+            if k == 'elearn_url':
+                new_obj.elearning_url = v
+                continue
+            if k == 'news_feed_url':
+                new_obj.news_feed_url = v
+                continue
+            if k == 'selbstdarstellung':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+
+        if portal_type_ == 'Literatur':
+            if k == 'publikationsautor':
+                new_obj.author = v
+                continue
+            if k == 'publikationstitel':
+                new_obj.title_of_publication = v
+                continue
+            if k == 'publikationsdatum':
+                new_obj.year = v
+                continue
+            if k == 'publikationsort':
+                new_obj.place_of_publication = v
+                continue
+            if k == 'publikationstyp':
+                new_obj.type_of_publication = v
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+            if k == 'visited':
+                new_obj.visited = v
+                continue
+
+        if portal_type_ == 'Referenzbeispiel':
+            if k == 'langtitel':
+                new_obj.description = v
+                continue
+            if k == 'medieneinsatz':
+                new_obj.use_of_media = v
+                continue
+            if k == 'lehrszenario':
+                new_obj.learning_scenario = v
+                continue
+            if k == 'fachbereich':
+                new_obj.faculty = v
+                continue
+            if k == 'kategorie':
+                new_obj.category = v
+                continue
+            if k == 'lehrfunktion':
+                new_obj.learning_goal = v
+                continue
+            if k == 'kurzbeschreibung':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+            if k == 'ansprechpartner':
+                new_obj.contact = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'zielgruppe':
+                new_obj.audience = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'ziele und inhalte':
+                new_obj.aims = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'didaktisches konzept':
+                new_obj.concept = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'curriculare verankerung':
+                new_obj.anchorage = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'beteilungen und kooperationen':
+                new_obj.participations = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'ergebnisse':
+                new_obj.results = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'zeitraum':
+                new_obj.period = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'foerderung':
+                new_obj.support = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'kosten':
+                new_obj.cost = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'rahmenbedingungen':
+                new_obj.environment = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'technik':
+                new_obj.technology = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
 
 
         if portal_type_ == 'ETGeoLocation':
@@ -762,7 +887,9 @@ def fixup_geolocation(options):
         print i, section, portal_type
         if portal_type in ('Projektdarstellung', 'PraxisBericht'):
             path_ = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path_)
+            obj = options.plone.restrictedTraverse(path_, None)
+            if obj is None:
+                continue
             print path_, obj
             old_uid = CP.get(section, 'uid')
             pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
@@ -866,6 +993,12 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
         plone.manage_delObjects('front-page')
     return plone
 
+def import_blog_entries(options):
+
+    print 'Importing blog entries'
+    view = options.plone.restrictedTraverse('@@import-blog-entries')
+    view('/home/people/ajung/blog_dump.xml')
+         
 def import_plone(app, options):
 
     if not os.path.exists(options.input_directory):
@@ -889,6 +1022,7 @@ def import_plone(app, options):
 #    import_groups(options)
 #    import_placeful_workflow(options)
     import_content(options)
+#    import_blog_entries(options)
     fixup_geolocation(options)
 #    fixup_uids(options)
 
