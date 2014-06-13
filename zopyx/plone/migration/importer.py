@@ -809,7 +809,7 @@ def create_new_obj(options, folder, old_uid):
             if k == 'lehrszenario':
                 new_obj.learning_scenario = v
                 continue
-            if k == 'fachbereich':
+            if k == 'fachbereichNeu':
                 new_obj.faculty = v
                 continue
             if k == 'kategorie':
