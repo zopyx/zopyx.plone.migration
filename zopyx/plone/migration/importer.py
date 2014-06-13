@@ -35,6 +35,7 @@ from Products.CMFPlone.utils import _createObjectByType
 from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
 from plone.namedfile.field import NamedBlobFile, NamedBlobImage
+from plone.app.event.dx.behaviors import IEventBasic
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
 from plone.app.event.dx.behaviors import data_postprocessing
@@ -299,6 +300,9 @@ def target_pt(default_portal_type, id_, dirname):
 
     if default_portal_type in ('Event',):
         return default_portal_type
+
+    if default_portal_type in ('Weiterbildung', 'Veranstaltung'):
+        return 'Event'
 
     if default_portal_type in ('ETEvent',):
         return 'eteaching.policy.onlineevent'
@@ -586,7 +590,7 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
-#    if portal_type_ not in ('Hochschulinfo', 'Referenzbeispiel', 'Glossar', 'Literatur', 'Steckbrief', 'Partition', 'ThemenSpecial', 'ETEvent'):
+#    if portal_type_ not in ('Veranstaltung', 'Weiterbildung'):
 #        return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
@@ -916,7 +920,40 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.url = v
                 continue
 
+        if portal_type_ == 'Weiterbildung':
 
+            if k == 'Kurzbeschreibung':
+                new_obj.description = v
+                continue
+            if k == 'Veranstaltungsbeginn':
+                if v:
+                    ev = IEventBasic(new_obj)
+                    ev.start = datetime.now()
+                    ev.end= datetime.now()
+                    ev.timezone = 'UTC'
+                    if v:
+                        ev.start = datetime(v.year(), v. month(), v.day())
+
+                        end = obj_data['schemadata']['Veranstaltungsende']
+                        if end:
+                            ev.end = datetime(end.year(), end.month(), end.day())
+                continue
+            if k == 'Veranstaltungsform':
+                new_obj.form_of_event = v
+                continue
+            if k == 'Ort':
+                new_obj.location = v
+                continue
+            if k == 'Ansprechpartner':
+                new_obj.contact_name = v
+                continue
+            if k == 'EMail':
+                new_obj.contact_email = v
+                continue
+            if k == 'VeranstaltungsURL':
+                new_obj.event_url = v
+                continue
+            
         if portal_type_ == 'Medienbeitrag':
 
             if k in ('subtitle', 'partner'):
@@ -938,7 +975,6 @@ def create_new_obj(options, folder, old_uid):
             print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
 
     if portal_type_ == 'Event':
-        from plone.app.event.dx.behaviors import IEventBasic
         start = obj_data['schemadata']['start']
         end = obj_data['schemadata']['end']
         if start:
@@ -956,6 +992,8 @@ def create_new_obj(options, folder, old_uid):
             ev.timezone = tz
             data_postprocessing(new_obj, None)
 
+    if portal_type_ == 'Weiterbildung':
+        data_postprocessing(new_obj, None)
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
