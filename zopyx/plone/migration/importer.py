@@ -590,6 +590,12 @@ def create_new_obj(options, folder, old_uid):
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
+    if options.portal_types:
+        allowed_types = options.portal_types.split(',')
+        allowed_types = [t.strip() for t in allowed_types]
+        if portal_type_ not in allowed_types:
+            return
+
 #    if portal_type_ not in ('Veranstaltung', 'Weiterbildung'):
 #        return
 
@@ -1019,13 +1025,11 @@ def fixup_geolocation(options):
     log('Fixup geolocation')
     for i, section in enumerate(sections):
         portal_type = CP.get(section, 'portal_type')
-        print i, section, portal_type
         if portal_type in ('Projektdarstellung', 'PraxisBericht'):
             path_ = CP.get(section, 'path')
             obj = options.plone.restrictedTraverse(path_, None)
             if obj is None:
                 continue
-            print path_, obj
             old_uid = CP.get(section, 'uid')
             pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
             obj_data = cPickle.load(file(pickle_filename))
@@ -1152,7 +1156,8 @@ def import_plone(app, options):
 
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
-    import_members(options)
+    if options.import_members:
+        import_members(options)
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
     import_placeful_workflow(options)
@@ -1184,8 +1189,10 @@ def main():
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
     parser.add_option('-i', '--input', dest='input_directory', default='')
+    parser.add_option('-p', '--portal-types', dest='portal_types', default='')
     parser.add_option('-d', '--dest-folder', dest='dest_folder', default='sites')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
+    parser.add_option('-m', '--import-members', dest='import_members', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     options, args = parser.parse_args(sys.argv[2:])
     import_site(options)
