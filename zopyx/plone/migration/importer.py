@@ -209,6 +209,7 @@ def import_members(options):
         member_props['gender'] = vcard.get('geschlecht', '')
         member_props['position'] = vcard.get('position', '')
         member_props['academic'] = vcard.get('academic', '')
+        member_props['phone'] = vcard.get('fon1', '')
         member_props['cv'] = vcard.get('bemerkung', '')
 
         # datetime
