@@ -43,25 +43,6 @@ from zope.intid.interfaces import IIntIds
 
 import sys
 
-vcard_props = {
-    'academic': 'academic',
-    'bemerkung': 'description',
-    'bundesland': 'state',
-#    'db_projekte': 'db_projects',
-#    'expertise': 'expertise',
-#    'fachgebiete': 'specialties',
-    'fon1': 'phone',
-#    'geburtstag': 'birthday',
-    'geschlecht': 'gender',
-#    'institution': 'institution',
-#    'institutsLocation': 'institution_location',
-#    'kooperationsInteresse': 'cooperation_interests',
-#    'mitgliedschaften': 'memberships',
-    'plz': 'zip',
-    'position': 'position',
-#    'projekte': 'projects',
-    'title': 'title',
-}
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 
@@ -167,45 +148,42 @@ def import_members(options):
         username = get(section, 'username')
         print username
 
-        if options.plone.acl_users.getUser(username):
-            continue
+        if not options.plone.acl_users.getUser(username):
 
-#        if username != 'mschmidt1':
-#            continue
 
-        if len(username) == 1:
-            username +='-2'
-        elif len(username) == 2:
-            username +='-2'
-       
-        email = get(section, 'email')
-        if not email:
-            continue
-
-        if options.verbose:
-            log('-> %s' % username)
-
-        # omit group accounts
-        if username.startswith('group_'):
-            continue
-
-        created = False
-        for i in range(1, 4):
-            try:
-                time.sleep(0.1)
-                plone.api.user.create(email=get(section, 'email'),
-                                      username=username,
-                                      password=get(section, 'password'),
-                                      roles=('Member',))
-
-                created = True
-            except (AttributeError, ValueError) as e:
-                log('-> Error: %s' % e)
+            if len(username) == 1:
+                username +='-2'
+            elif len(username) == 2:
+                username +='-2'
+           
+            email = get(section, 'email')
+            if not email:
                 continue
 
-        if not created:
-            print 'Unable to create account {}'.format(username)
-            continue
+            if options.verbose:
+                log('-> %s' % username)
+
+            # omit group accounts
+            if username.startswith('group_'):
+                continue
+
+            created = False
+            for i in range(1, 4):
+                try:
+                    time.sleep(0.1)
+                    plone.api.user.create(email=get(section, 'email'),
+                                          username=username,
+                                          password=get(section, 'password'),
+                                          roles=('Member',))
+
+                    created = True
+                except (AttributeError, ValueError) as e:
+                    log('-> Error: %s' % e)
+                    continue
+
+            if not created:
+                print 'Unable to create account {}'.format(username)
+                continue
 
         roles = get(section, 'roles').split(',') 
         for role in roles:
@@ -216,29 +194,38 @@ def import_members(options):
 
         count += 1
         member = pm.getMemberById(username)
-#        pm.createMemberArea(username)
+
         vcard = json.loads(get(section, 'vcard'))
         member_props = dict(email=get(section, 'email'),
                             fullname=get(section, 'fullname'))
 
-        for k,v in vcard_props.items():
-            value = vcard.get(k)
-            if not value:
-                continue
-            
-            if v in ['db_projects', 'specialties', 'cooperation_interests', 'memberships', 'projects']:
-                if isinstance(value, list):
-                    member_props[v] = value
-                elif isinstance(value, basestring):
-                    member_props[v] = [value]
+        print '-'*80
+        import pprint
+        pprint.pprint(vcard)
+        
+        # textish properties
+        member_props['firstname'] = vcard.get('vorname', '')
+        member_props['lastname'] = vcard.get('name', '')
+        member_props['gender'] = vcard.get('geschlecht', '')
+        member_props['position'] = vcard.get('position', '')
+        member_props['academic'] = vcard.get('academic', '')
+        member_props['cv'] = vcard.get('bemerkung', '')
 
-            else:
-                if isinstance(value, basestring):
-                    member_props[v] = value
+        # datetime
+        v = vcard.get('geburtstag')
+        if v:
+            member_props['birthday'] = v
 
+        # list properties
+        member_props['specialties'] = [t for t in (vcard.get('fachgebiete') or '').split(',') if t]
+        member_props['expertise'] =   [t for t in (vcard.get('expertise') or '').split(',') if t]
+        member_props['memberships'] = [t for t in (vcard.get('mitgliedschaften') or '').split(',') if t]
+        member_props['projects'] =    [t for t in (vcard.get('projekte') or '').split(',') if t]
+        member_props['db_projects'] = vcard.get('db_projekte', [])
 
         import pprint
         pprint.pprint(member_props)
+
         if member is not None:
             try:
                 member.setMemberProperties(member_props)
