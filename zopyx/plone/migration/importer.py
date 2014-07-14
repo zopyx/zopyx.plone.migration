@@ -991,7 +991,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.description = v
                 continue
             if k == 'medieneinsatz':
-                new_obj.use_of_media = MAP_REFERENCE_EXAMPLE_USE_OF_MEDIA_TAGS.get(v)
+                new_obj.use_of_media = [MAP_REFERENCE_EXAMPLE_USE_OF_MEDIA_TAGS.get(k) for k in v]
                 continue
             if k == 'lehrszenario':
                 new_obj.learning_scenario = [MAP_REFERENCE_EXAMPLE_LEARNING_SCENARIO_TAGS.get(k) for k in v]
@@ -1003,7 +1003,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.category = v
                 continue
             if k == 'lehrfunktion':
-                new_obj.learning_goal = MAP_REFERENCE_EXAMPLE_LEARNING_GOAL_TAGS.get(v)
+                new_obj.learning_goal = [MAP_REFERENCE_EXAMPLE_LEARNING_GOAL_TAGS.get(k) for k in v]
                 continue
             if k == 'kurzbeschreibung':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
