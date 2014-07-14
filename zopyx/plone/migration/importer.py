@@ -894,10 +894,10 @@ def create_new_obj(options, folder, old_uid):
                 continue
 
             if k == 'plattform':
-                new_obj.supported_os = MAP_TEST_REPORT_SUPPORTED_OS_TAGS.get(v)
+                new_obj.supported_os = [MAP_TEST_REPORT_SUPPORTED_OS_TAGS.get(k)  for k in v]
                 continue
             if k == 'produktkategorie':
-                new_obj.category = MAP_TEST_REPORT_CATEGORY_TAGS.get(v)
+                new_obj.category = [MAP_TEST_REPORT_CATEGORY_TAGS.get(k)  for k in v]
                 continue
 
         if portal_type_ == 'Projektdarstellung':
@@ -994,7 +994,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.use_of_media = MAP_REFERENCE_EXAMPLE_USE_OF_MEDIA_TAGS.get(v)
                 continue
             if k == 'lehrszenario':
-                new_obj.learning_scenario = MAP_REFERENCE_EXAMPLE_LEARNING_SCENARIO_TAGS.get(v)
+                new_obj.learning_scenario = [MAP_REFERENCE_EXAMPLE_LEARNING_SCENARIO_TAGS.get(k) for k in v]
                 continue
             if k == 'fachbereichNeu':
                 new_obj.faculty = v
