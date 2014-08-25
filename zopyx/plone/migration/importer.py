@@ -228,11 +228,15 @@ def setLocalRoles(obj, local_roles):
 def setLayout(obj, layout):
     if not layout:
         return
-    layout_ids = [id for id, title in obj.getAvailableLayouts()]
-    if layout in layout_ids:
+    layouts = []
+    fti = obj.getTypeInfo()
+    if fti:
+        layouts = fti.getAvailableViewMethods(obj)
+    if layout in layouts:
         obj.setLayout(layout)
     else:
-        log('Can not set layout %s on %s' % (layout, obj.absolute_url()))
+        log('Can not set layout %s on %s (%s)' % (
+            layout, obj.absolute_url(), fti.getId()))
 
 def setWFPolicy(obj, wf_policy):
     if not wf_policy:
@@ -473,6 +477,7 @@ def import_topic_criterions(options, topic, criterion_ids, old_uid):
         return
     obj_data = cPickle.load(file(pickle_filename))
     for crit_id in criterion_ids:
+        continue # XXX
         crit_data = obj_data['topic_criterions'].get(crit_id)
         if not crit_data or not crit_data.get('portal_type') or not crit_data.get('field'):
             # disabled suptopic support
@@ -630,7 +635,7 @@ def import_content(options):
         if obj is not None:
             for f in obj.Schema().filterFields(type='reference'):
                 name = f.getName()
-                old_uids = obj_data['schemadata'][name] or []
+                old_uids = obj_data['schemadata'].get(name, [])
                 new_refs = uids_to_references(options, obj, old_uids)
                 if len(new_refs) > 0:
                     if options.verbose:
