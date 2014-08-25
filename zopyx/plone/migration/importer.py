@@ -683,10 +683,13 @@ def import_plone(options):
     log('#' * 80)
 
     site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
-    profiles = ['plonetheme.sunburst:default']
+    profiles = []
+
     if options.extension_profiles:
         ext_profiles = options.extension_profiles.split(',')
         profiles.extend(ext_profiles)
+    if not profiles:
+        profiles = ['plonetheme.sunburst:default']
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
 
@@ -716,6 +719,7 @@ def import_site(options):
 def main():
     import Zope2
     app = Zope2.app()
+    sys.argv = [__file__] + sys.argv[3:]
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
