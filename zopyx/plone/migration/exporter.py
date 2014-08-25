@@ -91,18 +91,28 @@ def export_groups(options):
     log('Exporting groups')
     fp = file(os.path.join(options.export_directory, 'groups.ini'), 'w')
     acl_users = options.plone.acl_users
-    groups = acl_users.source_groups.getGroups()
+    if hasattr(acl_users, 'source_groups'):
+        # yeah, its pas
+        groups = acl_users.source_groups.getGroups()
+    else:
+        # omg, it could be gruf
+        groups = acl_users.Groups.acl_users.getUsers()
     num_groups = len(groups)
     for i, group in enumerate(groups):
         if options.verbose:
             log('--> (%d/%d) %s' % ((i + 1), num_groups, group.getId()))
         print >>fp, '[%d]' % i
         print >>fp, 'name = %s' % group.getId()
-        print >>fp, 'members = %s' % ','.join(group.getMemberIds())
+        if not hasattr(group, 'getMemberIds'):
+            members = [_.getId() for _ in
+                       options.plone.getUsersInGroup(group.getId())]
+        else:
+            members = group.getMemberIds()
+        print >>fp, 'members = %s' % ','.join(members)
         print >>fp, 'roles = %s' % ','.join(group.getRoles())
 
     fp.close()
-    log('exported %d groups' % len(acl_users.source_groups.getGroups()))
+    log('exported %d groups' % len(groups))
 
 def export_members(options):
 
