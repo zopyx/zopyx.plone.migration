@@ -314,7 +314,10 @@ def export_content(options):
     catalog = options.plone.portal_catalog
     export_dir = os.path.join(options.export_directory, 'content')
     os.mkdir(export_dir)
-    brains = catalog()
+    if HAS_LINGUAPLONE:
+        brains = catalog(Language="all")
+    else:
+        brains = catalog()
     log('%d items' % len(brains))
 
     fp = file(os.path.join(options.export_directory, 'content.ini'), 'w')
