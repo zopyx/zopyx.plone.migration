@@ -28,6 +28,13 @@ from Products.CMFPlone.utils import _createObjectByType
 from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
 
+# check for LinguaPlone
+try:
+    import Products.LinguaPlone
+    HAS_LINGUAPLONE = True
+except ImportError:
+    HAS_LINGUAPLONE = False
+
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = (
 #    'Topic',
@@ -228,11 +235,15 @@ def setLocalRoles(obj, local_roles):
 def setLayout(obj, layout):
     if not layout:
         return
-    layout_ids = [id for id, title in obj.getAvailableLayouts()]
-    if layout in layout_ids:
+    layouts = []
+    fti = obj.getTypeInfo()
+    if fti:
+        layouts = fti.getAvailableViewMethods(obj)
+    if layout in layouts:
         obj.setLayout(layout)
     else:
-        log('Can not set layout %s on %s' % (layout, obj.absolute_url()))
+        log('Can not set layout %s on %s (%s)' % (
+            layout, obj.absolute_url(), fti.getId()))
 
 def setWFPolicy(obj, wf_policy):
     if not wf_policy:
@@ -473,6 +484,7 @@ def import_topic_criterions(options, topic, criterion_ids, old_uid):
         return
     obj_data = cPickle.load(file(pickle_filename))
     for crit_id in criterion_ids:
+        continue # XXX
         crit_data = obj_data['topic_criterions'].get(crit_id)
         if not crit_data or not crit_data.get('portal_type') or not crit_data.get('field'):
             # disabled suptopic support
@@ -630,12 +642,23 @@ def import_content(options):
         if obj is not None:
             for f in obj.Schema().filterFields(type='reference'):
                 name = f.getName()
-                old_uids = obj_data['schemadata'][name] or []
+                old_uids = obj_data['schemadata'].get(name, [])
                 new_refs = uids_to_references(options, obj, old_uids)
                 if len(new_refs) > 0:
                     if options.verbose:
                         log("--> New References for %s (%s): %s" % (name, path, new_refs))
                     f.set(obj, new_refs)
+        if HAS_LINGUAPLONE and 'translations' in obj_data:
+            for lang, translation_path in obj_data['translations'].items():
+                translation = myRestrictedTraverse(
+                    options.plone,
+                    translation_path
+                )
+                obj.addTranslationReference(translation)
+                if options.verbose:
+                    log("--> New %s Translation from %s to %s " % (
+                        translation.Language(), path, translation_path)
+                    )
 
 
 def log(s):
@@ -683,10 +706,13 @@ def import_plone(options):
     log('#' * 80)
 
     site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
-    profiles = ['plonetheme.sunburst:default']
+    profiles = []
+
     if options.extension_profiles:
         ext_profiles = options.extension_profiles.split(',')
         profiles.extend(ext_profiles)
+    if not profiles:
+        profiles = ['plonetheme.sunburst:default']
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
 
@@ -716,6 +742,7 @@ def import_site(options):
 def main():
     import Zope2
     app = Zope2.app()
+    sys.argv = [__file__] + sys.argv[3:]
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
