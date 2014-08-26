@@ -630,13 +630,16 @@ def import_content(options):
             path = CP.get(section, 'path')
             obj = myRestrictedTraverse(options.plone, path)
             basename, ext = os.path.splitext(id_)
-            if ext.lower() in ('.mp3', '.mp4', '.wmv') and 'collective.flowplayer' in installed_products:
+            if ext.lower() in ('.mp3', '.mp4', '.wmv') \
+               and 'collective.flowplayer' in installed_products:
                 log('Setting flowplayer view on %s' % obj.absolute_url(1))
                 obj.selectViewTemplate('flowplayer')
 
         # reference fields
         path = CP.get(section, 'path')
-        obj_pickle_filename = os.path.join(options.input_directory, 'content', CP.get(section, 'uid'))
+        obj_pickle_filename = os.path.join(
+            options.input_directory,
+            'content', CP.get(section, 'uid'))
         obj_data = cPickle.load(open(obj_pickle_filename))
         obj = myRestrictedTraverse(options.plone, path)
         if obj is not None:
@@ -646,19 +649,25 @@ def import_content(options):
                 new_refs = uids_to_references(options, obj, old_uids)
                 if len(new_refs) > 0:
                     if options.verbose:
-                        log("--> New References for %s (%s): %s" % (name, path, new_refs))
+                        log("--> New References for %s (%s): %s" %
+                            (name, path, new_refs))
                     f.set(obj, new_refs)
-        if HAS_LINGUAPLONE and 'translations' in obj_data:
+        if HAS_LINGUAPLONE and 'translations' in obj_data \
+           and len(obj_data['translations']):
+            obj.setCanonical()
+            reindexObject(obj)
             for lang, translation_path in obj_data['translations'].items():
                 translation = myRestrictedTraverse(
                     options.plone,
                     translation_path
                 )
-                obj.addTranslationReference(translation)
+                translation.addTranslationReference(obj)
+                reindexObject(translation)
                 if options.verbose:
-                    log("--> New %s Translation from %s to %s " % (
-                        translation.Language(), path, translation_path)
-                    )
+                    log("--> Connected Translation from [%s] %s to [%s] %s "
+                        % (path, obj.getLanguage(),
+                           translation_path, translation.Language(), ))
+            reindexObject(obj)
 
 
 def log(s):
