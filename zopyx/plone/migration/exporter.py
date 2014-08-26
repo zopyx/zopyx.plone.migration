@@ -48,6 +48,13 @@ from AccessControl.SecurityManagement import newSecurityManager
 from zope.component import getMultiAdapter
 from zope.component.interfaces import ComponentLookupError
 
+# check for LinguaPlone
+try:
+    import Products.LinguaPlone
+    HAS_LINGUAPLONE = True
+except ImportError:
+    HAS_LINGUAPLONE = False
+
 IGNORED_TYPES = (
     'NewsletterTheme',
 )
@@ -367,6 +374,8 @@ def export_content(options):
                     value = 'file://%s/%s_%s.bin' % (os.path.abspath(export_dir), _getUID(obj), name)
                 elif field.type == 'reference':
                     value = field.getRaw(obj)
+                if name == "language" and not value:
+                    value = options.plone.portal_languages.getDefaultLanguage()
                 obj_data['schemadata'][name] = value
 
         if obj.portal_type == 'Newsletter':
@@ -400,6 +409,17 @@ def export_content(options):
         except AttributeError:
             related_items = ''
             related_items_paths = ''
+
+        if HAS_LINGUAPLONE and obj.isCanonical():
+            for lang, tdata in obj.getTranslations().items():
+                if not lang or tdata[0] is obj:
+                    continue
+                if 'translations' not in obj_data:
+                    obj_data['translations'] = {}
+                obj_data['translations'][lang] = _getRelativePath(
+                    tdata[0],
+                    options.plone
+                )
 
         if obj.portal_type == "Topic":
             obj_data['metadata']['topic_criterions'] = ','.join(obj.objectIds())
