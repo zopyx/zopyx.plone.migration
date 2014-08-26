@@ -28,6 +28,13 @@ from Products.CMFPlone.utils import _createObjectByType
 from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
 
+# check for LinguaPlone
+try:
+    import Products.LinguaPlone
+    HAS_LINGUAPLONE = True
+except ImportError:
+    HAS_LINGUAPLONE = False
+
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = (
 #    'Topic',
@@ -641,6 +648,17 @@ def import_content(options):
                     if options.verbose:
                         log("--> New References for %s (%s): %s" % (name, path, new_refs))
                     f.set(obj, new_refs)
+        if HAS_LINGUAPLONE and 'translations' in obj_data:
+            for lang, translation_path in obj_data['translations'].items():
+                translation = myRestrictedTraverse(
+                    options.plone,
+                    translation_path
+                )
+                obj.addTranslationReference(translation)
+                if options.verbose:
+                    log("--> New %s Translation from %s to %s " % (
+                        translation.Language(), path, translation_path)
+                    )
 
 
 def log(s):
