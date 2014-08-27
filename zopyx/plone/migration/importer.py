@@ -939,6 +939,7 @@ def create_new_obj(options, folder, old_uid):
                 bericht.title = u'Bericht'
                 bericht.display_title = True
                 bericht.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                bericht.portal_workflow.doActionFor(bericht, 'publish')
                 bericht.reindexObject()
                 intid_util = getUtility(IIntIds)
                 bericht_intid = intid_util.getId(bericht)
