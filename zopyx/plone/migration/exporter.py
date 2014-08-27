@@ -414,11 +414,10 @@ def export_content(options):
             related_items_paths = ''
 
         if HAS_LINGUAPLONE and obj.isCanonical():
+            obj_data['translations'] = {}
             for lang, tdata in obj.getTranslations().items():
                 if not lang or tdata[0] is obj:
                     continue
-                if 'translations' not in obj_data:
-                    obj_data['translations'] = {}
                 obj_data['translations'][lang] = _getRelativePath(
                     tdata[0],
                     options.plone
