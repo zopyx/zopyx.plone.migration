@@ -123,12 +123,15 @@ def export_members(options):
         passwords = None
 
     for username in acl_users.getUserNames():
+        if username.lower() == 'phols':
+            import pdb; pdb.set_trace() 
         user = acl_users.getUserById(username)
         member = pm.getMemberById(username)
         membership = options.plone.portal_membership
 
         if member is None:
             continue
+
 
         roles = [r for r in member.getRoles() if not r in ('Member', 'Authenticated')]
         print >>fp, '[member-%s]' % username
@@ -416,7 +419,10 @@ def export_content(options):
                 obj_data['schemadata']['contact_phone'] = obj.contact_phone
                 obj_data['schemadata']['location'] = obj.location
                 obj_data['schemadata']['event_url'] = obj.event_url
-                obj_data['schemadata']['timezone'] = obj.timezone
+                try:
+                    obj_data['schemadata']['timezone'] = obj.timezone
+                except AttributeError:
+                    obj_data['schemadata']['timezone'] = 'GMT+2'
                 obj_data['schemadata']['subject'] = obj.subject
             print obj_data
 
@@ -434,6 +440,8 @@ def export_content(options):
         obj_data['metadata']['default_page'] = _getDefaultPage(obj)
         obj_data['metadata']['position_parent'] = _getPositionInParent(obj)
         obj_data['metadata']['local_roles_block'] = _getLocalRolesBlock(obj)
+        obj_data['metadata']['modified'] = obj.modified()
+        obj_data['metadata']['created'] = obj.created()
 
         if not stats.has_key(obj.portal_type):
             stats[obj.portal_type] = 0
@@ -509,7 +517,6 @@ def export_site(app, options):
     # inject some extra data instead creating our own datastructure
     options.export_directory = export_dir
     options.plone = makerequest(plone)
-
     # The export show starts here
     export_members(options)
     export_groups(options)
