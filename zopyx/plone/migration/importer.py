@@ -567,6 +567,15 @@ def changeOwner(obj, owner):
     if owner != 'Anonymous User':
         obj.setCreators([owner])
 
+
+def setModificationDate(obj, modified):
+    obj.setModificationDate(modified)
+
+
+def setCreationDate(obj, created):
+    obj.creation_date = created
+
+
 def setLocalRoles(obj, local_roles):
     if not local_roles:
         return
@@ -677,8 +686,13 @@ def setReviewState(content, state_id, acquire_permissions=False,
     @param kw: change the values of same name of the state mapping
     @return: None
     """
+
     if portal_workflow is None:
         portal_workflow = getToolByName(content, 'portal_workflow')
+
+    if state_id == 'visible':
+        state_id = 'published'
+        content.setExpirationDate(DateTime() - 1)
 
     # Might raise IndexError if no workflow is associated to this type
 
@@ -740,6 +754,8 @@ def update_content(options, new_obj, old_uid):
             except Exception, e:
                 log('Could not update field %s of %s (error=%s)' % (field.getName(), new_obj.absolute_url(), e))
 
+    setModificationDate(new_obj, obj_data['metadata']['modified'])
+    setCreationDate(new_obj, obj_data['metadata']['created'])
     setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
@@ -1180,6 +1196,8 @@ def create_new_obj(options, folder, old_uid):
         data_postprocessing(new_obj, None)
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
+    setModificationDate(new_obj, obj_data['metadata']['modified'])
+    setCreationDate(new_obj, obj_data['metadata']['created'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
     setLocalRoles(new_obj, obj_data['metadata']['local_roles'])
