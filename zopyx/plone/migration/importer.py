@@ -503,11 +503,14 @@ def import_topic_criterions(options, topic, criterion_ids, old_uid):
         return
     obj_data = cPickle.load(file(pickle_filename))
     for crit_id in criterion_ids:
-        continue # XXX
         crit_data = obj_data['topic_criterions'].get(crit_id)
-        if not crit_data or not crit_data.get('portal_type') or not crit_data.get('field'):
+        if not crit_data \
+           or not crit_data.get('portal_type') \
+           or not crit_data.get('field'):
             # disabled suptopic support
             continue
+        if crit_data['portal_type'] == "ATDateCriteria":
+            crit_data['portal_type'] = 'ATFriendlyDateCriteria'
         crit = topic.addCriterion(crit_data['field'], crit_data['portal_type'])
         if not crit:
             continue
@@ -707,12 +710,21 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
             app.manage_addFolder(id=dest_folder)
         dest = dest.restrictedTraverse(dest_folder)
     if site_id in dest.objectIds():
-        log('%s already exists in %s - REMOVING IT' % (site_id, dest.absolute_url(1)))
+        log('%s already exists in %s - REMOVING IT' %
+            (site_id, dest.absolute_url(1)))
         if dest.meta_type != 'Folder':
-            raise RuntimeError('Destination must be a Folder instance (found %s)' % dest.meta_type)
+            raise RuntimeError(
+                'Destination must be a Folder instance (found %s)' %
+                dest.meta_type)
         dest.manage_delObjects([site_id])
     log('Creating new Plone site with extension profiles %s' % profiles)
-    addPloneSite(dest, site_id, create_userfolder=True, extension_ids=profiles)
+    addPloneSite(
+        dest,
+        site_id,
+        create_userfolder=True,
+        extension_ids=profiles,
+        setup_content=False
+    )
     plone = dest[site_id]
     log('Created Plone site at %s' % plone.absolute_url(1))
     qit = plone.portal_quickinstaller
@@ -780,7 +792,7 @@ def main():
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
     parser.add_option('-i', '--input', dest='input_directory', default='')
-    parser.add_option('-d', '--dest-folder', dest='dest_folder', default='sites')
+    parser.add_option('-d', '--dest-folder', dest='dest_folder', default='')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     options, args = parser.parse_args()
