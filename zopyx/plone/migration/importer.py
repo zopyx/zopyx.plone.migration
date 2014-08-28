@@ -1,3 +1,6 @@
+# -*- coding: utf8 -*-
+
+
 ################################################################
 # Poor men's Plone export
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
@@ -8,6 +11,7 @@ import time
 import json
 import os
 import plone.api
+import datetime
 import shutil
 import tempfile
 import glob
@@ -34,6 +38,7 @@ from Products.CMFPlone.utils import _createObjectByType
 from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
 from plone.namedfile.field import NamedBlobFile, NamedBlobImage
+from plone.app.event.dx.behaviors import IEventBasic
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
 from plone.app.event.dx.behaviors import data_postprocessing
@@ -41,29 +46,10 @@ from zope.intid.interfaces import IIntIds
 
 import sys
 
-vcard_props = {
-    'academic': 'academic',
-    'bemerkung': 'description',
-    'bundesland': 'state',
-#    'db_projekte': 'db_projects',
-#    'expertise': 'expertise',
-#    'fachgebiete': 'specialties',
-    'fon1': 'phone',
-#    'geburtstag': 'birthday',
-    'geschlecht': 'gender',
-#    'institution': 'institution',
-#    'institutsLocation': 'institution_location',
-#    'kooperationsInteresse': 'cooperation_interests',
-#    'mitgliedschaften': 'memberships',
-    'plz': 'zip',
-    'position': 'position',
-#    'projekte': 'projects',
-    'title': 'title',
-}
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 
-
+# OK
 MAP_UNIVERSITY_STATUS = {
     'Uni': 'university',
     'Fachhochschule': 'college',
@@ -73,7 +59,7 @@ MAP_UNIVERSITY_STATUS = {
     'Vorgeschlagene Forschungseinrichtung': 'suggested_research_institute',
     'Sonstiges (Kein besonderer Ort)': 'other',
 }
-
+# OK
 MAP_FACULTY = {
     'Agrar- und Forstwissenschaft'        :    'agrarian_economy',  
     'Geistes- und Sozialwissenschaften'   :    'humanities',        
@@ -90,6 +76,7 @@ MAP_FACULTY = {
     'Sonstiges'                           :    'other'              
 }
 
+# OK
 MAP_CATEGORY = {
     'Lernumgebung':                 'learning_environment',
     'Lernmaterial':      'learning_material',
@@ -97,6 +84,182 @@ MAP_CATEGORY = {
     'Software':                     'software',
     'Lehr-/Lernszenario':           'learning_scenario'
 }
+
+# OK 
+MAP_ONLINE_EVENT_STATUS_VOCABULARY = {
+        'zukuenftig': 'future',
+        'live': 'live',
+        'vergangen': 'past'}
+
+# OK
+MAP_ONLINE_EVENT_TYPE_VOCABULARY = {
+        'Chat': 'chat',
+        'Ringvorlesung': 'lecture',
+        'Schulung': 'training',
+        'Workshop': 'workshop' }
+
+
+# OK
+MAP_REFERENCE_EXAMPLE_USE_OF_MEDIA_TAGS = {
+        'Hypertext': 'hypertext',
+        'PDF': 'pdf',
+        'Chat': 'chat',
+        'Newsgroup': 'newsgroup',
+        'Shared Workspace': 'shared_workspace',
+        'Application Sharing': 'application_sharing',
+        'Simulation': 'simulation',
+        'Animation': 'animation',
+        'Videokonferenz': 'video_conference',
+        'Videoübertragung/-aufzeichnung': 'video_streaming_recording',
+        'Audiokonferenz': 'audio_conference',
+        'Audioübertragung/-aufzeichnung': 'audio_streaming_recording',
+        'E-Mail': 'email',
+        'CBT / WBT': 'cbt_wbt',
+        'LMS / Lernmanagementsysteme': 'lms',
+        'Sonstige': 'other'
+        }
+
+
+# OK
+MAP_REFERENCE_EXAMPLE_LEARNING_SCENARIO_TAGS = {
+        'Vorlesung': 'lecture',
+        'Übung': 'exercise',
+        'Tutorium': 'tutorial',
+        'Praktikum': 'internship',
+        'Projekt': 'project',
+        'Seminar': 'seminar',
+        'Betreuung': 'support',
+        'Übergreifend / Sonstige': 'comprehensive',
+        }
+
+# OK
+MAP_REFERENCE_EXAMPLE_GLOBAL_FACULTY_TAGS = {
+        'Agrar- und Forstwissenschaft': 'agrarian_economy',
+        'Geistes- und Sozialwissenschaften': 'humanities',
+        'Geowissenschaft': 'geosciences',
+        'Informatik': 'informatics',
+        'Ingenieurswissenschaften': 'engineering',
+        'Kunst, Design und Medienwissenschaft': 'media_studies',
+        'Medizin und Gesundheitswesen': 'medical_science',
+        'Naturwissenschaft und Mathematik': 'natural_science',
+        'Rechtswissenschaft': 'law',
+        'Sportwissenschaft': 'sport_science',
+        'Sprachen und Sprachwissenschaft': 'linguistics',
+        'Wirtschaftswissenschaften': 'economic_sciences',
+        'Sonstiges': 'other'
+        }
+
+# OK
+MAP_REFERENCE_EXAMPLE_GLOBAL_CATEGORY_TAGS = {
+        'Lernumgebung': 'learning_environment',
+        'Lernmaterial(-sammlung)': 'learning_material',
+        'Software': 'software',
+        'Lehr-/Lernszenario': 'learning_scenario',
+        }
+
+
+# OK
+MAP_REFERENCE_EXAMPLE_LEARNING_GOAL_TAGS = {
+        'Informationsvermittlung': 'information_transfer',
+        'Wissenserarbeitung': 'studying_knowledge',
+        'Üben u. Anwenden': 'practice',
+        'Wissenstransfer': 'transfer_of_knowledge',
+        'Diskussion u. Austausch': 'discussion',
+        'Motivation': 'motivation',
+        'Feedback u. Lernerfolgskontrolle': 'feedback',
+        'Sonstige': 'other'
+        }
+
+# OK
+MAP_PROJECT_GLOBAL_FACULTY_TAGS = {
+        'Agrar- und Forstwissenschaft': 'agrarian_economy',
+        'Geistes- und Sozialwissenschaften': 'humanities',
+        'Geowissenschaft': 'geosciences',
+        'Informatik': 'informatics',
+        'Ingenieurswissenschaften': 'engineering',
+        'Kunst, Design und Medienwissenschaft': 'media_studies',
+        'Medizin und Gesundheitswesen': 'medical_science',
+        'Naturwissenschaft und Mathematik': 'natural_science',
+        'Rechtswissenschaft': 'law',
+        'Sportwissenschaft': 'sport_science',
+        'Sprachen und Sprachwissenschaft': 'linguistics',
+        'Wirtschaftswissenschaften': 'economic_sciences',
+        'Sonstiges': 'other'
+        }
+
+# OK
+MAP_PROJECT_GLOBAL_CATEGORY_TAGS = {
+        'Lernumgebung': 'learning_environment',
+        'Lernmaterial(-sammlung)': 'learning_material',
+        'Software': 'software',
+        'Lehr-/Lernszenario': 'learning_scenario',
+        }
+
+
+# OK
+MAP_LITERATURE_TYPE_OF_PUBLICATION_TAGS = {
+        'Audiovisuelles Medium': 'audiovisual',
+        'Dissertation': 'dissertation',
+        'Elektronische Zeitschrift': 'e_journal',
+        'Forschungsbericht': 'research_paper',
+        'Monographie': 'monograph',
+        'Onlinequelle': 'online_source',
+        'Positionspapier': 'position_paper',
+        'Pressemitteilung': 'press_release',
+        'Sammelband': 'anthology',
+        'Sammelbandbeitrag': 'anthology_essays',
+        'Tageszeitung': 'newspaper',
+        'Tagungsbeitrag': 'conference_contribution',
+        'Zeitschrift': 'journal',
+        'Zeitschriftenbeitrag': 'journal_article'
+        }
+
+
+# OK
+MAP_TEST_REPORT_CATEGORY_TAGS = {
+        'HTML': 'html',
+        'PDF': 'pdf',
+        'Bild': 'image',
+        'Audio': 'audio',
+        'Video': 'video',
+        'Animation': 'animation',
+        'Simulation': 'simulation',
+        'CBT/WBT': 'cbt_wbt',
+        'CMS': 'cms',
+        'Synchrone Kommunikation': 'synchronous_communication',
+        'Asynchrone Kommunikation': 'asynchronous_communication',
+        'Kooperation': 'cooperation',
+        'Präsentation': 'presentation',
+        'LMS': 'lms',
+        'Aufzeichnung': 'recording',
+        'Literaturverwaltung': 'literature_management',
+        'Sonstiges': 'other',
+        }
+
+# OK
+MAP_TEST_REPORT_SUPPORTED_OS_TAGS = {
+        'Windows': 'windows',
+        'Macintosh': 'macintosh',
+        'Unix / Linux': 'unix',
+        'Sonstiges': 'other',
+        }
+
+
+# OK
+USERDATASCHEMA_POSITION_TAGS = {
+        'lehrender': 'teacher',
+        'forscher': 'researcher',
+        'berater': 'consultant',
+        'mitarbeiter': 'university_staff',
+        'doktorand': 'doctoral_candidate',
+        'tutor': 'tutor',
+        'student': 'student',
+        }
+# OK
+USERDATASCHEMA_ACADEMIC_TAGS = {
+        'prof': 'professor',
+        'dr': 'doctor',
+        }
 
 
 def import_placeful_workflow(options):
@@ -163,47 +326,43 @@ def import_members(options):
     for section in CP.sections()[:]:
 
         username = get(section, 'username')
+
         print username
+        if not options.plone.acl_users.getUser(username):
 
-        if options.plone.acl_users.getUser(username):
-            continue
-
-#        if username != 'mschmidt1':
-#            continue
-
-        if len(username) == 1:
-            username +='-2'
-        elif len(username) == 2:
-            username +='-2'
-       
-        email = get(section, 'email')
-        if not email:
-            continue
-
-        if options.verbose:
-            log('-> %s' % username)
-
-        # omit group accounts
-        if username.startswith('group_'):
-            continue
-
-        created = False
-        for i in range(1, 4):
-            try:
-                time.sleep(0.1)
-                plone.api.user.create(email=get(section, 'email'),
-                                      username=username,
-                                      password=get(section, 'password'),
-                                      roles=('Member',))
-
-                created = True
-            except (AttributeError, ValueError) as e:
-                log('-> Error: %s' % e)
+            if len(username) == 1:
+                username +='-2'
+            elif len(username) == 2:
+                username +='-2'
+           
+            email = get(section, 'email')
+            if not email:
                 continue
 
-        if not created:
-            print 'Unable to create account {}'.format(username)
-            continue
+            if options.verbose:
+                log('-> %s' % username)
+
+            # omit group accounts
+            if username.startswith('group_'):
+                continue
+
+            created = False
+            for i in range(1, 4):
+                try:
+                    time.sleep(0.1)
+                    plone.api.user.create(email=get(section, 'email'),
+                                          username=username,
+                                          password=get(section, 'password'),
+                                          roles=('Member',))
+
+                    created = True
+                except (AttributeError, ValueError) as e:
+                    log('-> Error: %s' % e)
+                    continue
+
+            if not created:
+                print 'Unable to create account {}'.format(username)
+                continue
 
         roles = get(section, 'roles').split(',') 
         for role in roles:
@@ -214,29 +373,46 @@ def import_members(options):
 
         count += 1
         member = pm.getMemberById(username)
-#        pm.createMemberArea(username)
+
         vcard = json.loads(get(section, 'vcard'))
         member_props = dict(email=get(section, 'email'),
                             fullname=get(section, 'fullname'))
 
-        for k,v in vcard_props.items():
-            value = vcard.get(k)
-            if not value:
-                continue
-            
-            if v in ['db_projects', 'specialties', 'cooperation_interests', 'memberships', 'projects']:
-                if isinstance(value, list):
-                    member_props[v] = value
-                elif isinstance(value, basestring):
-                    member_props[v] = [value]
+        print '-'*80
+        import pprint
+        pprint.pprint(vcard)
 
-            else:
-                if isinstance(value, basestring):
-                    member_props[v] = value
+        def to_unicode(s):
+            if not isinstance(s, unicode):
+                return unicode(s or '', 'utf8', 'ignore')
+            return s
+        
+        # textish properties
+        member_props['firstname'] = to_unicode(vcard.get('vorname', ''))
+        member_props['lastname'] = to_unicode(vcard.get('name', ''))
+        member_props['gender'] = to_unicode(vcard.get('geschlecht', ''))
+        member_props['position'] = USERDATASCHEMA_POSITION_TAGS.get(to_unicode(vcard.get('position', '')))
+        member_props['academic'] = USERDATASCHEMA_ACADEMIC_TAGS.get(to_unicode(vcard.get('academic', '')))
+        member_props['phone'] = to_unicode(vcard.get('fon1', ''))
+        member_props['cv'] = to_unicode(vcard.get('bemerkung', ''))
 
+        # datetime
+        v = vcard.get('geburtstag')
+        if v:
+            member_props['birthday'] = v
+
+        # list properties
+        member_props['specialties'] = '\n'.join([t.strip() for t in (vcard.get('fachgebiete') or '').split(',') if t.strip()])
+        member_props['expertise'] =   '\n'.join([t.strip() for t in (vcard.get('expertise') or '').split(',') if t.strip()])
+        member_props['memberships'] = '\n'.join([t.strip() for t in (vcard.get('mitgliedschaften') or '').split(',') if t.strip()])
+
+#        member_props['projects'] =    [t for t in (vcard.get('projekte') or '').split(',') if t]
+#        member_props['db_projects'] = vcard.get('db_projekte', [])
 
         import pprint
         pprint.pprint(member_props)
+        
+
         if member is not None:
             try:
                 member.setMemberProperties(member_props)
@@ -299,11 +475,38 @@ def target_pt(default_portal_type, id_, dirname):
     if default_portal_type in ('Event',):
         return default_portal_type
 
+    if default_portal_type in ('Weiterbildung', 'Veranstaltung'):
+        return 'Event'
+
+    if default_portal_type in ('ETEvent',):
+        return 'eteaching.policy.onlineevent'
+
+    if default_portal_type in ('Steckbrief',):
+        return 'eteaching.policy.testreport'
+
+    if default_portal_type in ('Partition',):
+        return 'Folder'
+
+    if default_portal_type=='ThemenSpecial':
+        return 'eteaching.policy.special'
+
+    if default_portal_type=='Literatur':
+        return 'eteaching.policy.literature'
+
+    if default_portal_type=='Glossar':
+        return 'eteaching.policy.glossaryterm'
+    
+    if default_portal_type=='Referenzbeispiel':
+        return 'eteaching.policy.referenceexample'
+
+    if default_portal_type=='Hochschulinfo':
+        return 'eteaching.policy.location'
+
     if default_portal_type=='Medienbeitrag':
         return 'eteaching.policy.podcastitem'
 
     if default_portal_type == 'ETGeoLocation':
-        return 'eteaching.policy.geolocation'
+        return 'eteaching.policy.location'
 
     if default_portal_type == 'Projektdarstellung':
         return 'eteaching.policy.project'
@@ -416,7 +619,12 @@ def fix_resolve_uids(obj, options):
             raise TypeError('"node_names" must be a list or tuple (not %s)' % type(node_names))
         return './/*[%s]' % ' or '.join(['name()="%s"' % name for name in node_names])
 
-    html = obj.getRawText()
+    try:
+        html = obj.getRawText()
+    except AttributeError:
+        print 'Unable to fix uuids for %s %s' % (obj.absolute_url(), obj.portal_type)
+        return
+   
     if not isinstance(html, unicode):
         html = unicode(html, 'utf-8')
     try:
@@ -550,16 +758,20 @@ def create_new_obj(options, folder, old_uid):
     if not os.path.exists(pickle_filename):
         return
 
-
     obj_data = cPickle.load(file(pickle_filename))
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
 
+    if options.portal_types:
+        allowed_types = options.portal_types.split(',')
+        allowed_types = [t.strip() for t in allowed_types]
+        if portal_type_ not in allowed_types:
+            return
 
-    if portal_type_ not in ('ETGeoLocation', 'PraxisBericht', 'Projektdarstellung'):
-        return
+#    if portal_type_ not in ('Veranstaltung', 'Weiterbildung'):
+#        return
 
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
@@ -600,7 +812,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('image', 'file', 'projekt_foto', 'projekt_banner'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo', 'themengrafik'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
             if os.path.exists(filename):
@@ -621,21 +833,85 @@ def create_new_obj(options, folder, old_uid):
                     if k == 'projekt_banner':
                         new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=filename)
                         continue
+                elif new_obj.portal_type == 'eteaching.policy.location':
+                    if k == 'hslogo':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                elif new_obj.portal_type == 'eteaching.policy.referenceexample':
+                    if k == 'screenshot':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                elif new_obj.portal_type == 'eteaching.policy.testreport':
+                    if k == 'logo':
+                        new_obj.logo = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                    if k == 'screenshot':
+                        new_obj.screenshot = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                elif new_obj.portal_type == 'eteaching.policy.special':
+                    if k == 'themengrafik':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                elif new_obj.portal_type == 'eteaching.policy.onlineevent':
+                    if k == 'event_foto':
+                        new_obj.image = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
+                    if k == 'event_foto_sw':
+                        new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=filename)
+                        continue
 
             else:
                 log('No .bin file found %s' % filename)
                 import pdb; pdb.set_trace() 
                 continue
 
+        if portal_type_ == 'Glossar':
+            if k == 'body':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
+        if portal_type_ == 'Steckbrief':
+            _map = { 'produktbeschreibung': 'text',
+                    'vorteile': 'pros',
+                    'nachteile': 'cons',
+                    'beispiele': 'examples',
+                    'formate': 'file_formats',
+                    'getestete version': 'tested_version',
+                    'hersteller': 'producer',
+                    'preis': 'price',
+                    'windows': 'windows',
+                    'macintosh': 'macintosh',
+                    'unix': 'unix',
+                    'sonstige plattform': 'other_os',
+                    'weitere anforderungen': 'requirements',
+                    'einstiegslevel': 'entry_level',
+                    'tutorials': 'tutorials',
+                    'hinweise': 'hints',
+                    'alternativen': 'alternatives', }
+
+            if k in _map:
+                setattr(new_obj, _map[k], RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
+                continue
+
+            if k == 'plattform':
+                new_obj.supported_os = [MAP_TEST_REPORT_SUPPORTED_OS_TAGS.get(k)  for k in v]
+                continue
+            if k == 'produktkategorie':
+                new_obj.category = [MAP_TEST_REPORT_CATEGORY_TAGS.get(k)  for k in v]
+                continue
+
         if portal_type_ == 'Projektdarstellung':
+            if k == 'kurzbeschreibung':
+                new_obj.description = v
+                continue
             if k == 'projektTeam':
                 new_obj.team = v
                 continue
             if k == 'projektstart' and v:
-                new_obj.start = v.asdatetime()
+                new_obj.start = datetime(v.year(), v. month(), v.day())
                 continue
-            if k == 'projektend' and v:
-                new_obj.end = v.asdatetime()
+            if k == 'projektende' and v:
+                new_obj.end = datetime(v.year(), v. month(), v.day())
                 continue
             if k == 'url':
                 if not v.startswith('http'):
@@ -646,10 +922,10 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
             if k == 'fachbereich':
-                new_obj.faculty = [MAP_FACULTY[x] for x in v]
+                new_obj.faculty = [MAP_PROJECT_GLOBAL_FACULTY_TAGS[x] for x in v]
                 continue
             if k == 'kategorie':
-                new_obj.category = MAP_CATEGORY.get(v)
+                new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
                 continue
 
         if portal_type_ == 'PraxisBericht':
@@ -661,13 +937,146 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.invokeFactory('eteaching.policy.mediadocument', id='bericht')
                 bericht = new_obj['bericht']
                 bericht.title = u'Bericht'
-                bericht.display_title = u'Bericht'
+                bericht.display_title = True
                 bericht.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                bericht.portal_workflow.doActionFor(bericht, 'publish')
                 bericht.reindexObject()
                 intid_util = getUtility(IIntIds)
                 bericht_intid = intid_util.getId(bericht)
                 new_obj.media_documents = [bericht_intid]
 
+        if portal_type_ == 'Hochschulinfo':
+            if k == 'elearn_url':
+                new_obj.elearning_url = v
+                continue
+            if k == 'news_feed_url':
+                new_obj.news_feed_url = v
+                continue
+            if k == 'selbstdarstellung':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+
+        if portal_type_ == 'ThemenSpecial':
+            if k == 'intro_text':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
+        if portal_type_ == 'Literatur':
+            if k == 'publikationsautor':
+                new_obj.author = v
+                continue
+            if k == 'publikationstitel':
+                new_obj.title_of_publication = v
+                continue
+            if k == 'publikationsdatum':
+                new_obj.year = v
+                continue
+            if k == 'publikationsort':
+                new_obj.place_of_publication = v
+                continue
+            if k == 'publikationstyp':
+                new_obj.type_of_publication = MAP_LITERATURE_TYPE_OF_PUBLICATION_TAGS.get(v)
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+            if k == 'visited':
+                new_obj.visited = v
+                continue
+
+        if portal_type_ == 'Referenzbeispiel':
+            if k == 'langtitel':
+                new_obj.description = v
+                continue
+            if k == 'medieneinsatz':
+                new_obj.use_of_media = [MAP_REFERENCE_EXAMPLE_USE_OF_MEDIA_TAGS.get(k) for k in v]
+                continue
+            if k == 'lehrszenario':
+                new_obj.learning_scenario = [MAP_REFERENCE_EXAMPLE_LEARNING_SCENARIO_TAGS.get(k) for k in v]
+                continue
+            if k == 'fachbereichNeu':
+                new_obj.faculty = v
+                continue
+            if k == 'kategorie':
+                new_obj.category = v
+                continue
+            if k == 'lehrfunktion':
+                new_obj.learning_goal = [MAP_REFERENCE_EXAMPLE_LEARNING_GOAL_TAGS.get(k) for k in v]
+                continue
+            if k == 'kurzbeschreibung':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'url':
+                new_obj.url = v
+                continue
+            if k == 'ansprechpartner':
+                new_obj.contact = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'zielgruppe':
+                new_obj.audience = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'ziele und inhalte':
+                new_obj.aims = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'didaktisches konzept':
+                new_obj.concept = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'curriculare verankerung':
+                new_obj.anchorage = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'beteilungen und kooperationen':
+                new_obj.participations = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'ergebnisse':
+                new_obj.results = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'zeitraum':
+                new_obj.period = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'foerderung':
+                new_obj.support = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'kosten':
+                new_obj.cost = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'rahmenbedingungen':
+                new_obj.environment = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'technik':
+                new_obj.technology = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
+        if portal_type_ == 'ETEvent':
+            if k == 'status':
+                new_obj.status = MAP_ONLINE_EVENT_STATUS_VOCABULARY.get(v)
+                continue
+            if k == 'typ':
+                new_obj.type = MAP_ONLINE_EVENT_TYPE_VOCABULARY.get(v)
+                continue
+            if k == 'datum':
+                new_obj.start = v
+                continue
+            if k == 'experte':
+                new_obj.expert = v
+                continue
+            if k == 'beschreibung':
+                new_obj.text_future = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'kurzbeschreibung_vergangen':
+                new_obj.text_past = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'link_event':
+                new_obj.link_event = v
+                continue
+            if k == 'code_schnipsel':
+                new_obj.code_snippets = v
+                continue
+            if k == 'folien':
+                new_obj.slides = [item.split(';') for item in v]
+                continue
 
         if portal_type_ == 'ETGeoLocation':
             if k == 'geoBreite':
@@ -689,13 +1098,46 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.city = v
                 continue
             if k == 'status':
-                new_obj.university_status = [MAP_UNIVERSITY_STATUS[v]]
+                new_obj.university_status = MAP_UNIVERSITY_STATUS[v]
                 continue
             if k == 'url':
                 new_obj.url = v
                 continue
 
+        if portal_type_ == 'Weiterbildung':
 
+            if k == 'Kurzbeschreibung':
+                new_obj.description = v
+                continue
+            if k == 'Veranstaltungsbeginn':
+                if v:
+                    ev = IEventBasic(new_obj)
+                    ev.start = datetime.now()
+                    ev.end= datetime.now()
+                    ev.timezone = 'UTC'
+                    if v:
+                        ev.start = datetime(v.year(), v. month(), v.day())
+
+                        end = obj_data['schemadata']['Veranstaltungsende']
+                        if end:
+                            ev.end = datetime(end.year(), end.month(), end.day())
+                continue
+            if k == 'Veranstaltungsform':
+                new_obj.form_of_event = v
+                continue
+            if k == 'Ort':
+                new_obj.location = v
+                continue
+            if k == 'Ansprechpartner':
+                new_obj.contact_name = v
+                continue
+            if k == 'EMail':
+                new_obj.contact_email = v
+                continue
+            if k == 'VeranstaltungsURL':
+                new_obj.event_url = v
+                continue
+            
         if portal_type_ == 'Medienbeitrag':
 
             if k in ('subtitle', 'partner'):
@@ -717,7 +1159,6 @@ def create_new_obj(options, folder, old_uid):
             print 'Unhandled: %s (%s) %s=%s' % (new_obj.absolute_url(), new_obj.portal_type, k, str(v)[:40])
 
     if portal_type_ == 'Event':
-        from plone.app.event.dx.behaviors import IEventBasic
         start = obj_data['schemadata']['start']
         end = obj_data['schemadata']['end']
         if start:
@@ -735,6 +1176,8 @@ def create_new_obj(options, folder, old_uid):
             ev.timezone = tz
             data_postprocessing(new_obj, None)
 
+    if portal_type_ == 'Weiterbildung':
+        data_postprocessing(new_obj, None)
 
 #    setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
@@ -747,6 +1190,39 @@ def create_new_obj(options, folder, old_uid):
 #    setContentType(new_obj, obj_data['metadata']['content_type'])
     new_obj.reindexObject()
 
+def fixup_geolocation(options):
+
+    structure_ini = os.path.join(options.input_directory, 'content.ini')
+    CP = ConfigParser()
+    CP.read([structure_ini])
+    get = CP.get
+
+    sections = CP.sections()
+
+    # Now recreate the child objects within
+    log('Fixup geolocation')
+    for i, section in enumerate(sections):
+        portal_type = CP.get(section, 'portal_type')
+        if portal_type in ('Projektdarstellung', 'PraxisBericht'):
+            path_ = CP.get(section, 'path')
+            obj = options.plone.restrictedTraverse(path_, None)
+            if obj is None:
+                continue
+            old_uid = CP.get(section, 'uid')
+            pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+            obj_data = cPickle.load(file(pickle_filename))
+            schemadata = obj_data['schemadata']
+            institutsLocation = schemadata['institutsLocation']
+            brains = options.plone.portal_catalog(getId=institutsLocation)
+            intid_util = getUtility(IIntIds)
+            if brains:
+                geo_id  = intid_util.getId(brains[0].getObject())
+                obj.location_reference = [geo_id]
+            else:
+                print 'no GEO object found {}'.format(institutsLocation)
+
+
+    transaction.savepoint()
 
 def import_content(options):
 
@@ -834,6 +1310,12 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
         plone.manage_delObjects('front-page')
     return plone
 
+def import_blog_entries(options):
+
+    print 'Importing blog entries'
+    view = options.plone.restrictedTraverse('@@import-blogentries')
+    view('/home/people/ajung/blog_dump.xml')
+         
 def import_plone(app, options):
 
     if not os.path.exists(options.input_directory):
@@ -852,12 +1334,18 @@ def import_plone(app, options):
 
     plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
-#    import_members(options)
-#    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
-#    import_groups(options)
-#    import_placeful_workflow(options)
+    if options.import_members:
+        import_members(options)
+    options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
+    import_groups(options)
+    import_placeful_workflow(options)
     import_content(options)
-#    fixup_uids(options)
+#    import_blog_entries(options)
+    fixup_geolocation(options)
+    fixup_uids(options)
+
+    options.plone.restrictedTraverse('@@rebuild-backreferences')()
+
     return plone.absolute_url(1)
 
 def import_site(options):
@@ -879,8 +1367,10 @@ def main():
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
     parser.add_option('-i', '--input', dest='input_directory', default='')
+    parser.add_option('-p', '--portal-types', dest='portal_types', default='')
     parser.add_option('-d', '--dest-folder', dest='dest_folder', default='sites')
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
+    parser.add_option('-m', '--import-members', dest='import_members', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     options, args = parser.parse_args(sys.argv[2:])
     import_site(options)
