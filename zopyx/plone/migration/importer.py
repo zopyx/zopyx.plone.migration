@@ -1,5 +1,5 @@
 ################################################################
-# Poor men's Plone export
+# Poor men's Plone import
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
 ################################################################
 
@@ -21,8 +21,10 @@ from App.config import getConfiguration
 from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.factory import addPloneSite
 from Products.CMFPlone.utils import _createObjectByType
-from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import WorkflowPolicyConfig
-from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConfig_id
+from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import \
+    WorkflowPolicyConfig
+from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import \
+    WorkflowPolicyConfig_id
 
 # check for LinguaPlone
 try:
@@ -30,6 +32,45 @@ try:
     HAS_LINGUAPLONE = True
 except ImportError:
     HAS_LINGUAPLONE = False
+
+parser = OptionParser()
+parser.add_option(
+    '-u',
+    '--user',
+    dest='username',
+    default='admin'
+)
+parser.add_option(
+    '-x',
+    '--extension-profiles',
+    dest='extension_profiles',
+    default=''
+)
+parser.add_option(
+    '-i',
+    '--input',
+    dest='input_directory',
+    default=''
+)
+parser.add_option(
+    '-d',
+    '--dest-folder',
+    dest='dest_folder',
+    default=''
+)
+parser.add_option(
+    '-t',
+    '--timestamp',
+    dest='timestamp',
+    action='store_true'
+)
+parser.add_option(
+    '-v',
+    '--verbose',
+    dest='verbose',
+    action='store_true',
+    default=False
+)
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = (
@@ -74,7 +115,10 @@ def import_plonegazette_subscribers(options, newsletter, old_uid):
     """ Import PloneGazette subsribers into a new EasyNewsletter instance """
 
     log('Importing subscribers %s' % newsletter.absolute_url(1))
-    subscribers_ini = os.path.join(options.input_directory, '%s_plonegazette_subscribers' % old_uid)
+    subscribers_ini = os.path.join(
+        options.input_directory,
+        '%s_plonegazette_subscribers' % old_uid
+    )
     CP = ConfigParser()
     CP.read([subscribers_ini])
     get = CP.get
@@ -208,22 +252,27 @@ def folder_create(root, dirname, portal_type):
         if constrainsMode is not None:
             current.setConstrainTypesMode(0)
 
-        # current.invokeFactory(PT_REPLACE_MAP.get(portal_type, portal_type), id=components[-1])
-        _createObjectByType(PT_REPLACE_MAP.get(portal_type, portal_type), current, id=components[-1])
+        # current.invokeFactory(PT_REPLACE_MAP.get(portal_type,
+        #                       portal_type), id=components[-1])
+        _createObjectByType(
+            PT_REPLACE_MAP.get(portal_type, portal_type),
+            current,
+            id=components[-1]
+        )
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
 
 
 def myRestrictedTraverse(obj, path):
-   """ traversal w/o acquisition """
-   current = obj
-   for p in path.split('/'):
-       if p in current.objectIds():
+    """ traversal w/o acquisition """
+    current = obj
+    for p in path.split('/'):
+        if p in current.objectIds():
             current = current[p]
-       else:
+        else:
             return None
-   return current
+    return current
 
 
 def changeOwner(obj, owner):
@@ -259,7 +308,10 @@ def setLayout(obj, layout):
 def setWFPolicy(obj, wf_policy):
     if not wf_policy:
         return
-    i = WorkflowPolicyConfig(wf_policy['workflow_policy_in'], wf_policy['workflow_policy_below'])
+    i = WorkflowPolicyConfig(
+        wf_policy['workflow_policy_in'],
+        wf_policy['workflow_policy_below']
+    )
     setattr(obj, WorkflowPolicyConfig_id, i)
 
 
@@ -273,17 +325,26 @@ def setExcludeFromNav(obj, options):
 
 
 def setObjectPosition(obj, position):
+    return
     try:
         obj.aq_parent.moveObjectToPosition(obj.getId(), position)
     except:
         return
+    newpos = obj.aq_parent.getObjectPosition(obj.getId())
+    if newpos != position:
+        log('Position was not set correctly for %s.' % obj.getId())
+
 
 def setContentType(obj, content_type):
     obj.setContentType(content_type)
     obj.content_type = content_type
     if obj.portal_type == 'File':
-        obj.__annotations__['Archetypes.storage.AnnotationStorage-file'].setContentType(content_type)
-        obj.__annotations__['Archetypes.storage.AnnotationStorage-file'].setFilename(obj.getId())
+        obj.__annotations__[
+            'Archetypes.storage.AnnotationStorage-file'
+            ].setContentType(content_type)
+        obj.__annotations__[
+            'Archetypes.storage.AnnotationStorage-file'
+            ].setFilename(obj.getId())
 
 
 def setLocalRolesBlock(obj, value):
@@ -297,16 +358,19 @@ def fix_resolve_uids(obj, options):
         if not isinstance(node_names, (list, tuple)):
             raise TypeError('"node_names" must be a list or tuple (not %s)'
                             % type(node_names))
-        return './/*[%s]' % ' or '.join(['name()="%s"' % name for name in node_names])
+        return './/*[%s]' % \
+            ' or '.join(['name()="%s"' % name for name in node_names])
 
     html = obj.getRawText()
+    if not html:
+        return
     if not isinstance(html, unicode):
         html = unicode(html, 'utf-8')
     try:
         root = lxml.html.fromstring(html)
     except:
+        log("Cant parse html with lxml at %s" % obj.getId())
         return
-
     for node in root.xpath(xpath_query(('img', 'a'))):
         url = ''
         if node.tag == 'img':
@@ -314,23 +378,28 @@ def fix_resolve_uids(obj, options):
         elif node.tag == 'a':
             url = node.attrib.get('href', '')
 
-        if url.startswith('resolveuid'):
-            old_uid = url.split('/')[1]
-            pickle_filename = os.path.join(options.input_directory,
-                                           'content', old_uid)
-            if os.path.exists(pickle_filename):
-                old_data = cPickle.load(open(pickle_filename))
-                old_path = old_data['metadata']['path']
-                new_obj = myRestrictedTraverse(obj, old_path)
-                if new_obj is not None:
-                    new_uid = new_obj.UID()
-                    url_f = url.split('/')
-                    url_f[1] = new_uid
-                    url = '/'.join(url_f)
-                    if node.tag == 'img':
-                        node.attrib['src'] = url
-                    elif node.tag == 'a':
-                        node.attrib['href'] = url
+        if not url.startswith('resolveuid'):
+            continue
+        url_f = url.split('/')
+        old_uid = url_f[1]
+        pickle_filename = os.path.join(options.input_directory,
+                                       'content', old_uid)
+        if not os.path.exists(pickle_filename):
+            log('resolve uid failed, old uid does not exist: %s' %
+                pickle_filename)
+            continue
+
+        old_data = cPickle.load(open(pickle_filename))
+        old_path = old_data['metadata']['path']
+        new_obj = myRestrictedTraverse(options.plone, old_path)
+        if new_obj is None:
+            continue
+        url_f[1] = new_obj.UID()
+        url = '/'.join(url_f)
+        if node.tag == 'img':
+            node.attrib['src'] = url
+        elif node.tag == 'a':
+            node.attrib['href'] = url
 
     html = lxml.html.tostring(root, encoding=unicode)
     obj.setText(html)
@@ -386,7 +455,7 @@ def setReviewState(content, state_id, acquire_permissions=False,
         # Remove unknown items
         if k not in wf_state:
             del kw[k]
-    if kw.has_key('review_state'):
+    if 'review_state' in kw:
         del kw['review_state']
     wf_state.update(kw)
 
@@ -429,7 +498,8 @@ def update_content(options, new_obj, old_uid):
             try:
                 field.set(new_obj, v)
             except Exception, e:
-                log('Could not update field %s of %s (error=%s)' % (field.getName(), new_obj.absolute_url(), e))
+                log('Could not update field %s of %s (error=%s)' %
+                    (field.getName(), new_obj.absolute_url(), e))
 
     setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
@@ -441,6 +511,7 @@ def update_content(options, new_obj, old_uid):
     setExcludeFromNav(new_obj, options)
     setContentType(new_obj, obj_data['metadata']['content_type'])
     reindexObject(new_obj, obj_data['schemadata']['modification_date'])
+
 
 def create_new_obj(options, folder, old_uid):
     if not old_uid:
@@ -454,7 +525,7 @@ def create_new_obj(options, folder, old_uid):
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
     candidate = myRestrictedTraverse(options.plone, path_)
-    if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
+    if candidate is None or candidate.portal_type != portal_type_:
         if obj_data['metadata']['portal_type'] in IGNORED_TYPES:
             return
         try:
@@ -465,7 +536,11 @@ def create_new_obj(options, folder, old_uid):
             folder.setConstrainTypesMode(0)
         pt = obj_data['metadata']['portal_type']
         if not id_ in folder.objectIds():
-            _createObjectByType(PT_REPLACE_MAP.get(pt, pt), folder, id_)
+            _createObjectByType(
+                PT_REPLACE_MAP.get(pt, pt),
+                folder,
+                id_
+            )
             if constrainsMode is not None:
                 folder.setConstrainTypesMode(constrainsMode)
         new_obj = folder[id_]
@@ -483,7 +558,8 @@ def create_new_obj(options, folder, old_uid):
         try:
             field.set(new_obj, v)
         except Exception, e:
-            log('Unable to set %s for %s (%s)' % (k, new_obj.absolute_url(1), e))
+            log('Unable to set %s for %s (%s)' %
+                (k, new_obj.absolute_url(1), e))
 
     setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
@@ -545,14 +621,15 @@ def uids_to_references(options, context, old_uids):
 
 def import_content(options):
 
-    installed_products = [p['id'] for p in options.plone.portal_quickinstaller.listInstalledProducts()]
+    installed_products = [
+        p['id'] for p in
+        options.plone.portal_quickinstaller.listInstalledProducts()
+    ]
 
     log('Importing Content')
     structure_ini = os.path.join(options.input_directory, 'structure.ini')
     CP = ConfigParser()
     CP.read([structure_ini])
-    get = CP.get
-
     sections = CP.sections()
     sections.sort(lambda x, y: cmp(int(x), int(y)))
 
@@ -563,8 +640,8 @@ def import_content(options):
         if i == 0:  # Plone site
             continue
         if options.verbose:
-            log('--> (%d/%d) %s' % ((i + 1), num_sections, CP.get(section, 'path')))
-        id = CP.get(section, 'id')
+            log('--> (%d/%d) %s' %
+                ((i + 1), num_sections, CP.get(section, 'path')))
         uid = CP.get(section, 'uid')
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
@@ -586,7 +663,8 @@ def import_content(options):
     log('Creating content')
     for i, section in enumerate(sections):
         if options.verbose:
-            log('--> (%d/%d) %s' % ((i + 1), num_sections, CP.get(section, 'path')))
+            log('--> (%d/%d) %s' %
+                ((i + 1), num_sections, CP.get(section, 'path')))
         uids = CP.get(section, 'children_uids').split(',')
         if i == 0:
             current = options.plone
@@ -622,7 +700,8 @@ def import_content(options):
             except AttributeError:
                 child_ids = []
             if default_page in child_ids:
-                log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
+                log('Setting default page for %s to %s' %
+                    (obj.absolute_url(1), default_page))
                 obj.setDefaultPage(default_page)
                 obj.default_page = default_page
 
@@ -630,7 +709,6 @@ def import_content(options):
     content_ini = os.path.join(options.input_directory, 'content.ini')
     CP = ConfigParser()
     CP.read([content_ini])
-    get = CP.get
     sections = CP.sections()
     log('Post migration fix-up (content.ini)')
     for i, section in enumerate(sections):
@@ -677,19 +755,16 @@ def import_content(options):
         if HAS_LINGUAPLONE and 'translations' in obj_data \
            and len(obj_data['translations']):
             obj.setCanonical()
-            reindexObject(obj)
             for lang, translation_path in obj_data['translations'].items():
                 translation = myRestrictedTraverse(
                     options.plone,
                     translation_path
                 )
                 translation.addTranslationReference(obj)
-                reindexObject(translation)
                 if options.verbose:
                     log("--> Connected Translation from [%s] %s to [%s] %s "
                         % (path, obj.getLanguage(),
                            translation_path, translation.Language(), ))
-            reindexObject(obj)
 
 
 def log(s):
@@ -697,7 +772,10 @@ def log(s):
 
 
 def fixup_uids(options):
-    for brain in options.plone.portal_catalog({'portal_type': FIXUIDTYPES}):
+    query = {'portal_type': FIXUIDTYPES}
+    if HAS_LINGUAPLONE:
+        query['Language'] = 'all'
+    for brain in options.plone.portal_catalog(**query):
         fix_resolve_uids(brain.getObject(), options)
 
 
@@ -717,6 +795,7 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
                 'Destination must be a Folder instance (found %s)' %
                 dest.meta_type)
         dest.manage_delObjects([site_id])
+        transaction.commit()
     log('Creating new Plone site with extension profiles %s' % profiles)
     addPloneSite(
         dest,
@@ -729,7 +808,7 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
     log('Created Plone site at %s' % plone.absolute_url(1))
     qit = plone.portal_quickinstaller
 
-    ids = [p['id'] for p in qit.listInstallableProducts(skipInstalled=1) ]
+    ids = [p['id'] for p in qit.listInstallableProducts(skipInstalled=1)]
     for product in products:
         if product in ids:
             qit.installProduct(product)
@@ -758,15 +837,19 @@ def import_plone(options):
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
 
-    plone = setup_plone(options.app, options.dest_folder, site_id,
-                        profiles=profiles)
-    options.plone = plone
+    # options.plone = myRestrictedTraverse(options.app, site_id)
+    options.plone = setup_plone(
+        options.app,
+        options.dest_folder,
+        site_id,
+        profiles=profiles
+    )
     import_members(options)
     import_groups(options)
     import_placeful_workflow(options)
     import_content(options)
     fixup_uids(options)
-    return plone.absolute_url(1)
+    return options.plone.absolute_url(1)
 
 
 def import_site(options):
@@ -788,13 +871,6 @@ def main():
     import Zope2
     app = Zope2.app()
     sys.argv = [__file__] + sys.argv[3:]
-    parser = OptionParser()
-    parser.add_option('-u', '--user', dest='username', default='admin')
-    parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
-    parser.add_option('-i', '--input', dest='input_directory', default='')
-    parser.add_option('-d', '--dest-folder', dest='dest_folder', default='')
-    parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
-    parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     options, args = parser.parse_args()
     options.app = app
     import_site(options)
