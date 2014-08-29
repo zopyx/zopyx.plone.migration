@@ -208,10 +208,14 @@ def export_structure(options):
         context_uid = ''
         context_uid = _getUID(context)
 
+        rel_path = _getRelativePath(context, options.plone)
+        if rel_path in ['bawue']:
+            continue
+
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
-        print >>fp, 'path = %s' % _getRelativePath(context, options.plone)
+        print >>fp, 'path = %s' % rel_path
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
         print >>fp, 'default_page = %s' % _getDefaultPage(context)
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
