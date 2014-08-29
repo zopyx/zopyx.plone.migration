@@ -109,6 +109,10 @@ PT_REPLACE_MAP = {
     'GMap': 'GeoLocation',
     #    'Topic': 'Collection',
 }
+LAYOUT_REPLACE_MAP = {
+    ('WalserDictionary', 'base_view'): 'walserdictionary_view',
+    ('WalserTimeline', 'base_view'): 'walsertimeline_view',
+}
 
 
 def import_plonegazette_subscribers(options, newsletter, old_uid):
@@ -294,6 +298,7 @@ def setLocalRoles(obj, local_roles):
 def setLayout(obj, layout):
     if not layout:
         return
+    layout = LAYOUT_REPLACE_MAP.get((obj.portal_type, layout), layout)
     layouts = []
     fti = obj.getTypeInfo()
     if fti:
@@ -325,7 +330,8 @@ def setExcludeFromNav(obj, options):
 
 
 def setObjectPosition(obj, position):
-    return
+    if HAS_LINGUAPLONE:
+        return
     try:
         obj.aq_parent.moveObjectToPosition(obj.getId(), position)
     except:
