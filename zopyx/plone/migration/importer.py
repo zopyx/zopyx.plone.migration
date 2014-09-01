@@ -59,6 +59,12 @@ parser.add_option(
     default=''
 )
 parser.add_option(
+    '-s',
+    '--site-id',
+    dest='site_id',
+    default=None
+)
+parser.add_option(
     '-t',
     '--timestamp',
     dest='timestamp',
@@ -832,7 +838,11 @@ def import_plone(options):
     log(options.input_directory)
     log('#' * 80)
 
-    site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
+    if options.site_id is None:
+        site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
+    else:
+        site_id = options.site_id
+
     profiles = []
 
     if options.extension_profiles:
