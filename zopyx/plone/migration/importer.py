@@ -1073,7 +1073,8 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.type = MAP_ONLINE_EVENT_TYPE_VOCABULARY.get(v)
                 continue
             if k == 'datum':
-                new_obj.start = datetime(v.year(), v. month(), v.day())
+                if v:
+                    new_obj.start = datetime(v.year(), v. month(), v.day())
                 continue
             if k == 'experte':
                 new_obj.expert = v
