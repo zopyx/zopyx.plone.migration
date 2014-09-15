@@ -837,10 +837,10 @@ def create_new_obj(options, folder, old_uid):
                 ext = mt.split('/')[-1]
                 filename = u'{}.{}'.format(new_obj.getId(), ext)
                 if new_obj.portal_type == 'Image':
-                    setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename))
+                    setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=filename, contentType=mt))
                     continue
                 elif new_obj.portal_type == 'File':
-                    setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename))
+                    setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=filename, contentType=mt))
                     continue
                 elif new_obj.portal_type == 'eteaching.policy.experiencereport':
                     if k == 'projekt_foto':
