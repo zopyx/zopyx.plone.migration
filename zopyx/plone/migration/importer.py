@@ -836,44 +836,45 @@ def create_new_obj(options, folder, old_uid):
                 mt = magic.from_buffer(v, True)
                 ext = mt.split('/')[-1]
                 filename = u'{}.{}'.format(new_obj.getId(), ext)
+                contentType = unicode(mt)
                 if new_obj.portal_type == 'Image':
-                    setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=mt))
+                    setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType))
                     continue
                 elif new_obj.portal_type == 'File':
-                    setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=unicode(filename), contentType=mt))
+                    setattr(new_obj, k, namedfile.NamedBlobFile(v, filename=unicode(filename), contentType=contentType))
                     continue
                 elif new_obj.portal_type == 'eteaching.policy.experiencereport':
                     if k == 'projekt_foto':
-                        new_obj.image = namedfile.NamedBlobFile(v, filename=unicode(filename))
+                        new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                     if k == 'projekt_banner':
-                        new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=unicode(filename))
+                        new_obj.thumbnail = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                 elif new_obj.portal_type == 'eteaching.policy.location':
                     if k == 'hslogo':
-                        new_obj.image = namedfile.NamedBlobFile(v, filename=unicode(filename))
+                        new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                 elif new_obj.portal_type == 'eteaching.policy.referenceexample':
                     if k == 'screenshot':
-                        new_obj.image = namedfile.NamedBlobFile(v, filename=unicode(filename))
+                        new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                 elif new_obj.portal_type == 'eteaching.policy.testreport':
                     if k == 'logo':
-                        new_obj.logo = namedfile.NamedBlobFile(v, filename=unicode(filename))
+                        new_obj.logo = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                     if k == 'screenshot':
-                        new_obj.screenshot = namedfile.NamedBlobFile(v, filename=unicode(unicode))
+                        new_obj.screenshot = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                 elif new_obj.portal_type == 'eteaching.policy.special':
                     if k == 'themengrafik':
-                        new_obj.image = namedfile.NamedBlobFile(v, filename=unicode(unicode))
+                        new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                 elif new_obj.portal_type == 'eteaching.policy.onlineevent':
                     if k == 'event_foto':
-                        new_obj.image = namedfile.NamedBlobFile(v, filename=unicode(unicode))
+                        new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
                     if k == 'event_foto_sw':
-                        new_obj.thumbnail = namedfile.NamedBlobFile(v, filename=unicode(unicode))
+                        new_obj.thumbnail = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
 
             else:
