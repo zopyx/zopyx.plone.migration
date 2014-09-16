@@ -937,7 +937,7 @@ def create_new_obj(options, folder, old_uid):
             if k == 'langbeschreibung':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
-            if k == 'fachbereich':
+            if k == 'fachbereichNeu':
                 new_obj.faculty = [MAP_PROJECT_GLOBAL_FACULTY_TAGS[x] for x in v]
                 continue
             if k == 'kategorie':
@@ -1014,10 +1014,10 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.learning_scenario = [MAP_REFERENCE_EXAMPLE_LEARNING_SCENARIO_TAGS.get(k) for k in v]
                 continue
             if k == 'fachbereichNeu':
-                new_obj.faculty = v
+                new_obj.faculty = [MAP_PROJECT_GLOBAL_FACULTY_TAGS[x] for x in v]
                 continue
             if k == 'kategorie':
-                new_obj.category = v
+                new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
                 continue
             if k == 'lehrfunktion':
                 new_obj.learning_goal = [MAP_REFERENCE_EXAMPLE_LEARNING_GOAL_TAGS.get(k) for k in v]
