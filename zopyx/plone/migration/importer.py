@@ -836,7 +836,7 @@ def create_new_obj(options, folder, old_uid):
                 mt = magic.from_buffer(v, True)
                 ext = mt.split('/')[-1]
                 filename = u'{}.{}'.format(new_obj.getId(), ext)
-                contentType = unicode(mt)
+                contentType = mt
                 if new_obj.portal_type == 'Image':
                     setattr(new_obj, k, namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType))
                     continue
