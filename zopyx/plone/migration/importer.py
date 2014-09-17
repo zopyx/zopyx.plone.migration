@@ -327,7 +327,10 @@ def import_members(options):
 
         username = get(section, 'username')
 
-        print username
+        if chr(0x95) in username:
+            import pdb; pdb.set_trace() 
+
+
         if not options.plone.acl_users.getUser(username):
 
             if len(username) == 1:
@@ -350,8 +353,9 @@ def import_members(options):
             for i in range(1, 4):
                 try:
                     time.sleep(0.1)
+                    username_normalized = unicode(username, 'utf8', 'ignore').encode('ascii', 'ignore')
                     plone.api.user.create(email=get(section, 'email'),
-                                          username=username,
+                                          username=username_normalized,
                                           password=get(section, 'password'),
                                           roles=('Member',))
 
