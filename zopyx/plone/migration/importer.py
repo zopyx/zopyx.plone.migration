@@ -942,7 +942,7 @@ def create_new_obj(options, folder, old_uid):
             if k == 'langbeschreibung':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
-            if k == 'fachbereichNeu':
+            if k == 'fachbereich':
                 new_obj.faculty = [MAP_PROJECT_GLOBAL_FACULTY_TAGS[x] for x in v]
                 continue
             if k == 'kategorie':
