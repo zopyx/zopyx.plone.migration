@@ -11,6 +11,7 @@ import transaction
 import urllib2
 import cPickle
 import shutil
+import sys
 import lxml.html
 from optparse import OptionParser
 from datetime import datetime
@@ -29,30 +30,31 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import WorkflowPolicyConf
 
 IGNORED_FIELDS = ('id', 'relatedItems')
 IGNORED_TYPES = (
-     'Topic', 
-#    'Ploneboard', 
-#    'PloneboardForum', 
-#    'NewsletterTheme', 
-#    'Newsletter', 
-    'Section', 
-    'NewsletterBTree', 
-    'NewsletterReference', 
-    'NewsletterRichReference', 
+#    'Topic',
+#    'Ploneboard',
+#    'PloneboardForum',
+#    'NewsletterTheme',
+#    'Newsletter',
+    'Section',
+    'NewsletterBTree',
+    'NewsletterReference',
+    'NewsletterRichReference',
     'CalendarXFolder',
 #    'GMap',
-#    'Collage', 
-#    'CollageRow', 
+#    'Collage',
+#    'CollageRow',
 #    'CollageColumn',
 #    'FormFolder',
 #    'PloneboardConversation',
 #    'PloneboardComment',
-)   
+)
 
 PT_REPLACE_MAP = {
     'NewsletterTheme' : 'EasyNewsletter',
 #    'NewsletterTheme' : 'ENLIssue',
     'Newsletter' : 'ENLIssue',
     'GMap' : 'GeoLocation',
+#    'Topic': 'Collection',
 }
 
 def import_plonegazette_subscribers(options, newsletter, old_uid):
@@ -122,12 +124,12 @@ def import_members(options):
         # omit group accounts
         if username.startswith('group_'):
             continue
-        
+
         roles = get(section, 'roles').split(',') + ['Member']
-    
+
         try:
-            pr.addMember(username, 
-                         get(section, 'password'), 
+            pr.addMember(username,
+                         get(section, 'password'),
                          roles=roles)
         except Exception, e:
             errors.append(dict(username=username, error=e))
@@ -162,13 +164,15 @@ def import_groups(options):
             log('-> %s' % grp_id)
 
         roles = get(section, 'roles').split(',')
-        groups_tool.addGroup(grp_id)    
-        groups_tool.editGroup(grp_id, roles=roles)
+        groups_tool.addGroup(grp_id, roles=roles)
         grp = groups_tool.getGroupById(grp_id)
+        if grp is None:
+            log('   Error while creating group %s' % grp_id)
+            continue
         for member in members:
             grp.addMember(member)
         count += 1
-                                  
+
     log('%d groups imported' % count)
 
 
@@ -177,11 +181,11 @@ def folder_create(root, dirname, portal_type):
     current = root
     components = dirname.split('/')
     for c in components[:-1]:
-        if not c: 
+        if not c:
             continue
         if not c in current.objectIds():
-            #_createObjectByType('Folder', current, id=c)
-            current.invokeFactory('Folder', id=c)
+            _createObjectByType('Folder', current, id=c)
+            # current.invokeFactory('Folder', id=c)
         current = getattr(current, c)
     if not components[-1] in current.objectIds():
         try:
@@ -191,7 +195,8 @@ def folder_create(root, dirname, portal_type):
         if constrainsMode is not None:
             current.setConstrainTypesMode(0)
 
-        current.invokeFactory(PT_REPLACE_MAP.get(portal_type, portal_type), id=components[-1])
+        # current.invokeFactory(PT_REPLACE_MAP.get(portal_type, portal_type), id=components[-1])
+        _createObjectByType(PT_REPLACE_MAP.get(portal_type, portal_type), current, id=components[-1])
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
@@ -221,6 +226,8 @@ def setLocalRoles(obj, local_roles):
         obj.manage_setLocalRoles(userid, roles)
 
 def setLayout(obj, layout):
+    if not layout:
+        return
     layout_ids = [id for id, title in obj.getAvailableLayouts()]
     if layout in layout_ids:
         obj.setLayout(layout)
@@ -287,7 +294,7 @@ def fix_resolve_uids(obj, options):
             if os.path.exists(pickle_filename):
                 old_data = cPickle.load(open(pickle_filename))
                 old_path = old_data['metadata']['path']
-                new_obj = obj.restrictedTraverse(old_path, None)
+                new_obj = myRestrictedTraverse(obj, old_path)
                 if new_obj is not None:
                     new_uid = new_obj.UID()
                     url_f = url.split('/')
@@ -300,6 +307,12 @@ def fix_resolve_uids(obj, options):
 
     html = lxml.html.tostring(root, encoding=unicode)
     obj.setText(html)
+
+def reindexObject(obj, modified=None):
+    """ restores original modified date (if given) and reindexes object """
+    if modified:
+        obj.setModificationDate(modified)
+    obj.reindexObject(idxs=['suppress_notifyModified', ])
 
 
 #############################################################################################################
@@ -326,9 +339,9 @@ def setReviewState(content, state_id, acquire_permissions=False,
 
     workflows = portal_workflow.getWorkflowsFor(content)
     if not workflows:
-        return 
+        return
     wf_def = workflows[0]
-    wf_id= wf_def.getId()
+    wf_id = wf_def.getId()
 
     wf_state = {
         'action': None,
@@ -358,7 +371,8 @@ def setReviewState(content, state_id, acquire_permissions=False,
         wf_def.updateRoleMappingsFor(content)
 
     # Map changes to the catalogs
-    content.reindexObject(idxs=['allowedRolesAndUsers', 'review_state'])
+    content.reindexObject(idxs=['allowedRolesAndUsers', 'review_state',
+                                'suppress_notifyModified'])
     return
 
 
@@ -372,11 +386,16 @@ def update_content(options, new_obj, old_uid):
         return
     obj_data = cPickle.load(file(pickle_filename))
 
-    for k,v in obj_data['schemadata'].items():
+    for k, v in obj_data['schemadata'].items():
         if k in IGNORED_FIELDS:
             continue
         field = new_obj.Schema().getField(k)
         if field:
+            if field.type == "reference":
+                # reference fields are handled later
+                continue
+            if isinstance(v, basestring) and v.startswith('file://'):
+                v = urllib2.urlopen(v).read()
             try:
                 field.set(new_obj, v)
             except Exception, e:
@@ -391,12 +410,12 @@ def update_content(options, new_obj, old_uid):
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
     setContentType(new_obj, obj_data['metadata']['content_type'])
-    new_obj.reindexObject()
+    reindexObject(new_obj, obj_data['schemadata']['modification_date'])
 
 def create_new_obj(options, folder, old_uid):
     if not old_uid:
         return
-    
+
     pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
     if not os.path.exists(pickle_filename):
         return
@@ -416,18 +435,18 @@ def create_new_obj(options, folder, old_uid):
             folder.setConstrainTypesMode(0)
         pt = obj_data['metadata']['portal_type']
         if not id_ in folder.objectIds():
-            folder.invokeFactory(PT_REPLACE_MAP.get(pt, pt), id=id_)
+            _createObjectByType(PT_REPLACE_MAP.get(pt, pt), folder, id_)
             if constrainsMode is not None:
                 folder.setConstrainTypesMode(constrainsMode)
         new_obj = folder[id_]
     else:
         new_obj = candidate
 
-    for k,v in obj_data['schemadata'].items():
+    for k, v in obj_data['schemadata'].items():
         if k in IGNORED_FIELDS:
             continue
         field = new_obj.Schema().getField(k)
-        if field is None:
+        if field is None or field.type == "reference":
             continue
         if isinstance(v, basestring) and v.startswith('file://'):
             v = urllib2.urlopen(v).read()
@@ -435,7 +454,7 @@ def create_new_obj(options, folder, old_uid):
             field.set(new_obj, v)
         except Exception, e:
             log('Unable to set %s for %s (%s)' % (k, new_obj.absolute_url(1), e))
-            
+
     setLocalRolesBlock(new_obj, obj_data['metadata']['local_roles_block'])
     setObjectPosition(new_obj, obj_data['metadata']['position_parent'])
     changeOwner(new_obj, obj_data['metadata']['owner'])
@@ -445,7 +464,49 @@ def create_new_obj(options, folder, old_uid):
     setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
     setContentType(new_obj, obj_data['metadata']['content_type'])
-    new_obj.reindexObject()
+    reindexObject(new_obj, obj_data['schemadata']['modification_date'])
+
+
+def import_topic_criterions(options, topic, criterion_ids, old_uid):
+    pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
+    if not os.path.exists(pickle_filename):
+        return
+    obj_data = cPickle.load(file(pickle_filename))
+    for crit_id in criterion_ids:
+        crit_data = obj_data['topic_criterions'].get(crit_id)
+        if not crit_data or not crit_data.get('portal_type') or not crit_data.get('field'):
+            # disabled suptopic support
+            continue
+        crit = topic.addCriterion(crit_data['field'], crit_data['portal_type'])
+        if not crit:
+            continue
+        crit_schema = crit.aq_base.Schema()
+        for field in crit_schema.fields():
+            name = field.getName()
+            if name in IGNORED_FIELDS:
+                continue
+            value = crit_data.get(name)
+            if field.type == "reference":
+                value = uids_to_references(options, topic, value)
+            if value:
+                field.set(crit, value)
+
+
+def uids_to_references(options, context, old_uids):
+    if isinstance(old_uids, basestring):
+        old_uids = (old_uids, )
+    new_refs = []
+    for uid in old_uids:
+        pickle_filename = os.path.join(options.input_directory, 'content', uid)
+        if os.path.exists(pickle_filename):
+            old_data = cPickle.load(open(pickle_filename))
+            old_path = old_data['metadata']['path']
+            new_obj = context.restrictedTraverse(old_path, None)
+            if new_obj is not None:
+                new_refs.append(new_obj)
+            else:
+                log("Could not find path for old object (%s)" % old_data)
+    return new_refs
 
 
 def import_content(options):
@@ -459,27 +520,31 @@ def import_content(options):
     get = CP.get
 
     sections = CP.sections()
-    sections.sort(lambda x,y: cmp(int(x), int(y)))
+    sections.sort(lambda x, y: cmp(int(x), int(y)))
 
     # Recreate folderish structure first
     log('Creating hierarchy structure first')
     num_sections = len(sections)
     for i, section in enumerate(sections):
-        if i==0: # Plone site
+        if i == 0:  # Plone site
             continue
         if options.verbose:
-            log('--> (%d/%d) %s' % (i, num_sections, CP.get(section, 'path')))
+            log('--> (%d/%d) %s' % ((i + 1), num_sections, CP.get(section, 'path')))
         id = CP.get(section, 'id')
         uid = CP.get(section, 'uid')
         path = CP.get(section, 'path')
         portal_type = CP.get(section, 'portal_type')
         if portal_type in IGNORED_TYPES:
             continue
-        new_obj = folder_create(options.plone, path, portal_type)
+        try:
+            new_obj = folder_create(options.plone, path, portal_type)
+        except Exception, msg:
+            log('Could not create %s: %s' % (path, msg))
+            continue
         if uid:
             update_content(options, new_obj, uid)
         if portal_type in ('Newsletter', 'NewsletterTheme'):
-            import_plonegazette_subscribers(options, new_obj, uid) 
+            import_plonegazette_subscribers(options, new_obj, uid)
 
     transaction.savepoint()
 
@@ -487,7 +552,7 @@ def import_content(options):
     log('Creating content')
     for i, section in enumerate(sections):
         if options.verbose:
-            log('--> (%d/%d) %s' % (i, num_sections, CP.get(section, 'path')))
+            log('--> (%d/%d) %s' % ((i + 1), num_sections, CP.get(section, 'path')))
         uids = CP.get(section, 'children_uids').split(',')
         if i == 0:
             current = options.plone
@@ -496,21 +561,19 @@ def import_content(options):
             if CP.get(section, 'portal_type') in IGNORED_TYPES:
                 continue
             current = options.plone.restrictedTraverse(path)
-
         for uid in uids:
-            create_new_obj(options, current, uid)
+            try:
+                create_new_obj(options, current, uid)
+            except ValueError, msg:
+                log('Could not create new object: %s' % msg)
+
         log('--> %d children created' % len(uids))
 
         if i % 10 == 0:
             transaction.savepoint()
 
-    # Now using content.ini for post migration fix-up
-    structure_ini = os.path.join(options.input_directory, 'structure.ini')
-    CP = ConfigParser()
-    CP.read([structure_ini])
-    get = CP.get
-    sections = CP.sections()
-    log('Post migration fix-up (structure.ini)')
+    # set default pages
+    log('Setting default pages')
     for i, section in enumerate(sections):
         # Default page
         try:
@@ -519,17 +582,17 @@ def import_content(options):
             default_page = None
         if default_page:
             path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
+            obj = myRestrictedTraverse(options.plone, path)
             try:
                 child_ids = obj.objectIds()
-            except AttributeError:                
+            except AttributeError:
                 child_ids = []
             if default_page in child_ids:
                 log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
                 obj.setDefaultPage(default_page)
                 obj.default_page = default_page
 
-
+    # Now using content.ini for post migration fix-up
     content_ini = os.path.join(options.input_directory, 'content.ini')
     CP = ConfigParser()
     CP.read([content_ini])
@@ -538,60 +601,45 @@ def import_content(options):
     log('Post migration fix-up (content.ini)')
     for i, section in enumerate(sections):
 
-        # folder album view
-        if CP.get(section, 'portal_type') == 'Folder':
+        # Topic
+        if CP.get(section, 'portal_type') == 'Topic':
+            id_ = CP.get(section, 'id')
             path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            images = obj.getFolderContents({'portal_type' : 'Image'})
-            if len(images) > 0 and len(images) == len(obj.contentValues()):
-                log('Setting galleryview on %s' % obj.absolute_url(1))
-                obj.selectViewTemplate('galleryview')
+            old_uid = CP.get(section, 'uid')
+            crit_ids = CP.get(section, 'topic_criterions').split(',')
+            obj = myRestrictedTraverse(options.plone, path)
+            if obj:
+                import_topic_criterions(options, obj, crit_ids, old_uid)
+                log("Fixed topic criterions for %s" % path)
 
         # Flowplayer
         if CP.get(section, 'portal_type') == 'File':
             id_ = CP.get(section, 'id')
             path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
+            obj = myRestrictedTraverse(options.plone, path)
             basename, ext = os.path.splitext(id_)
             if ext.lower() in ('.mp3', '.mp4', '.wmv') and 'collective.flowplayer' in installed_products:
                 log('Setting flowplayer view on %s' % obj.absolute_url(1))
                 obj.selectViewTemplate('flowplayer')
 
-        # Default page
-        try:
-            default_page = CP.get(section, 'default_page')
-        except:
-            default_page = None
-        if default_page:
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            try:
-                child_ids = obj.objectIds()
-            except AttributeError:                
-                child_ids = []
-            if default_page in child_ids:
-                log('Setting default page for %s to %s' % (obj.absolute_url(1), default_page))
-                obj.setDefaultPage(default_page)
-                obj.default_page = default_page
-
-        # related items
-        related_items_paths = CP.get(section, 'related_items_paths').split(',')
-        if related_items_paths:
-            path = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path,None)
-            if obj is not None:
-                ref_objs = []
-                for related_items_path in related_items_paths:
-                    o = options.plone.restrictedTraverse(related_items_path, None)
-                    if o is not None:
-                        ref_objs.append(o)
-                log('Setting related items on %s' % obj.absolute_url(1))
-                if ref_objs:
-                    obj.setRelatedItems(ref_objs)                                            
+        # reference fields
+        path = CP.get(section, 'path')
+        obj_pickle_filename = os.path.join(options.input_directory, 'content', CP.get(section, 'uid'))
+        obj_data = cPickle.load(open(obj_pickle_filename))
+        obj = myRestrictedTraverse(options.plone, path)
+        if obj is not None:
+            for f in obj.Schema().filterFields(type='reference'):
+                name = f.getName()
+                old_uids = obj_data['schemadata'][name] or []
+                new_refs = uids_to_references(options, obj, old_uids)
+                if len(new_refs) > 0:
+                    if options.verbose:
+                        log("--> New References for %s (%s): %s" % (name, path, new_refs))
+                    f.set(obj, new_refs)
 
 
 def log(s):
-    print >>sys.stdout, s
+    print >> sys.stdout, s
 
 
 def fixup_uids(options):
@@ -602,6 +650,9 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
     app = makerequest(app)
     dest = app
     if dest_folder:
+        if dest_folder not in app.objectIds():
+            log("Creating destination Folder: '%s'" % dest_folder)
+            app.manage_addFolder(id=dest_folder)
         dest = dest.restrictedTraverse(dest_folder)
     if site_id in dest.objectIds():
         log('%s already exists in %s - REMOVING IT' % (site_id, dest.absolute_url(1)))
@@ -622,23 +673,24 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
         plone.manage_delObjects('front-page')
     return plone
 
-def import_plone(app, options):
+def import_plone(options):
 
     if not os.path.exists(options.input_directory):
         raise ValueError('Input directory does not exist')
 
-    log('#'*80)
+    log('#' * 80)
     log(options.input_directory)
-    log('#'*80)
+    log('#' * 80)
 
     site_id = options.input_directory.rstrip('/').rsplit('/', 1)[-1]
     profiles = ['plonetheme.sunburst:default']
-    ext_profiles = options.extension_profiles.split(',')
-    profiles.extend(ext_profiles)
+    if options.extension_profiles:
+        ext_profiles = options.extension_profiles.split(',')
+        profiles.extend(ext_profiles)
     if options.timestamp:
         site_id += '_' + datetime.now().strftime('%Y%m%d-%H%M%S')
 
-    plone = setup_plone(app, options.dest_folder, site_id, profiles=profiles)
+    plone = setup_plone(options.app, options.dest_folder, site_id, profiles=profiles)
     options.plone = plone
     import_members(options)
     import_groups(options)
@@ -649,19 +701,21 @@ def import_plone(app, options):
 
 def import_site(options):
 
-    uf = app.acl_users
+    uf = options.app.acl_users
     user = uf.getUser(options.username)
     if user is None:
         raise ValueError('Unknown user: %s' % options.username)
     newSecurityManager(None, user.__of__(uf))
 
-    url = import_plone(app, options)
+    url = import_plone(options)
     log('Committing...')
     transaction.commit()
     log('done')
     log(url)
 
 def main():
+    import Zope2
+    app = Zope2.app()
     parser = OptionParser()
     parser.add_option('-u', '--user', dest='username', default='admin')
     parser.add_option('-x', '--extension-profiles', dest='extension_profiles', default='')
@@ -670,6 +724,7 @@ def main():
     parser.add_option('-t', '--timestamp', dest='timestamp', action='store_true')
     parser.add_option('-v', '--verbose', dest='verbose', action='store_true', default=False)
     options, args = parser.parse_args()
+    options.app = app
     import_site(options)
 
 if __name__ == '__main__':
