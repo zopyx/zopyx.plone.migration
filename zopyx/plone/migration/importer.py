@@ -1079,7 +1079,7 @@ def create_new_obj(options, folder, old_uid):
                 continue
             if k == 'datum':
                 if v:
-                    new_obj.start = datetime(v.year(), v. month(), v.day(), v.hour(), v.minute(), v.second())
+                    new_obj.start = datetime(v.year(), v. month(), v.day(), v.hour(), v.minute(), int(v.second()))
                 continue
             if k == 'experte':
                 new_obj.expert = v
