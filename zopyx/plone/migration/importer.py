@@ -1097,7 +1097,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.code_snippets = v
                 continue
             if k == 'folien':
-                new_obj.slides = [item.split(';') for item in v]
+                new_obj.slides = [dict(name=item.split(';')[0], link=item.split(';')[1]) for item in v]
                 continue
 
         if portal_type_ == 'ETGeoLocation':
