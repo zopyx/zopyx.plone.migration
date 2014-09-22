@@ -832,7 +832,7 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo', 'themengrafik'):
+        if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo', 'themengrafik', 'event_foto', 'event_foto_sw'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
             if os.path.exists(filename):
@@ -1079,7 +1079,7 @@ def create_new_obj(options, folder, old_uid):
                 continue
             if k == 'datum':
                 if v:
-                    new_obj.start = datetime(v.year(), v. month(), v.day())
+                    new_obj.start = datetime(v.year(), v. month(), v.day(), v.hour(), v.minute(), v.second())
                 continue
             if k == 'experte':
                 new_obj.expert = v
@@ -1089,6 +1089,9 @@ def create_new_obj(options, folder, old_uid):
                 continue
             if k == 'kurzbeschreibung_vergangen':
                 new_obj.text_past = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+            if k == 'kurzbeschreibung_zukunft':
+                new_obj.description = v
                 continue
             if k == 'link_event':
                 new_obj.link_event = v
