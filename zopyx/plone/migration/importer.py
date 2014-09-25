@@ -489,7 +489,7 @@ def target_pt(default_portal_type, id_, dirname):
         return 'eteaching.policy.testreport'
 
     if default_portal_type in ('Partition',):
-        return 'Folder'
+        return 'Partition'
 
     if default_portal_type=='ThemenSpecial':
         return 'eteaching.policy.special'
@@ -873,6 +873,10 @@ def create_new_obj(options, folder, old_uid):
                     if k == 'themengrafik':
                         new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
                         continue
+                elif new_obj.portal_type == 'eteaching.policy.partition':
+                    if k == 'image':
+                        new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
+                        continue
                 elif new_obj.portal_type == 'eteaching.policy.onlineevent':
                     if k == 'event_foto':
                         new_obj.image = namedfile.NamedBlobImage(v, filename=unicode(filename), contentType=contentType)
@@ -1006,6 +1010,11 @@ def create_new_obj(options, folder, old_uid):
                 continue
             if k == 'visited':
                 new_obj.visited = v
+                continue
+
+        if portal_type == 'Partition':
+            if k == 'body':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
 
         if portal_type_ == 'Referenzbeispiel':
