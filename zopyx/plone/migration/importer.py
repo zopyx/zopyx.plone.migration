@@ -1374,13 +1374,13 @@ def import_plone(app, options):
         import_members(options)
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
-#    import_placeful_workflow(options)
-#    import_content(options)
-##    import_blog_entries(options)
-#    fixup_geolocation(options)
-#    fixup_uids(options)
+    import_placeful_workflow(options)
+    import_content(options)
+#    import_blog_entries(options)
+    fixup_geolocation(options)
+    fixup_uids(options)
 
-#    options.plone.restrictedTraverse('@@rebuild-backreferences')()
+    options.plone.restrictedTraverse('@@rebuild-backreferences')()
 
     return plone.absolute_url(1)
 
