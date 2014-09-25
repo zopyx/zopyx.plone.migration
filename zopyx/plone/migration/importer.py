@@ -1,6 +1,5 @@
 # -*- coding: utf8 -*-
 
-
 ################################################################
 # Poor men's Plone export
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
@@ -323,13 +322,12 @@ def import_members(options):
 
     addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
-    for section in CP.sections()[:]:
+    for i, section in enumerate(CP.sections()[:]):
 
         username = get(section, 'username')
 
-        if 'RRuuleZz' in username:  # spammer
+        if username in ('I_RRuuleZz',):
             continue
-
 
         if not options.plone.acl_users.getUser(username):
 
@@ -343,7 +341,7 @@ def import_members(options):
                 continue
 
             if options.verbose:
-                log('-> %s' % username)
+                log('-> %d, %s' % (i, username))
 
             # omit group accounts
             if username.startswith('group_'):
@@ -382,10 +380,6 @@ def import_members(options):
         member_props = dict(email=get(section, 'email'),
                             fullname=get(section, 'fullname'))
 
-        print '-'*80
-        import pprint
-        pprint.pprint(vcard)
-
         def to_unicode(s):
             if not isinstance(s, unicode):
                 return unicode(s or '', 'utf8', 'ignore')
@@ -412,10 +406,6 @@ def import_members(options):
 
 #        member_props['projects'] =    [t for t in (vcard.get('projekte') or '').split(',') if t]
 #        member_props['db_projects'] = vcard.get('db_projekte', [])
-
-        import pprint
-        pprint.pprint(member_props)
-        
 
         if member is not None:
             try:
@@ -1178,6 +1168,10 @@ def create_new_obj(options, folder, old_uid):
                 setattr(new_obj, k, v)
                 continue
 
+            if k == 'additional':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                continue
+
             if k == 'media':
                 id_ = v.split('/')[-1]
                 id_ = id_.lower().replace('-', '_') # normalization
@@ -1372,6 +1366,7 @@ def import_plone(app, options):
     options.plone = plone
     if options.import_members:
         import_members(options)
+    return plone.absolute_url(1)
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
     import_placeful_workflow(options)
