@@ -1366,7 +1366,7 @@ def import_plone(app, options):
     options.plone = plone
     if options.import_members:
         import_members(options)
-    return plone.absolute_url(1)
+    
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
     import_placeful_workflow(options)
