@@ -1164,8 +1164,12 @@ def create_new_obj(options, folder, old_uid):
             
         if portal_type_ == 'Medienbeitrag':
 
-            if k in ('subtitle', 'partner'):
-                setattr(new_obj, k, v)
+            if k == 'partner':
+                new_obj.partner = v
+                continue
+
+            if k == 'subTitle ':
+                new_obj.subtitle = v
                 continue
 
             if k == 'additional':
