@@ -1012,7 +1012,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.visited = v
                 continue
 
-        if portal_type == 'Partition':
+        if portal_type_ == 'Partition':
             if k == 'body':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
