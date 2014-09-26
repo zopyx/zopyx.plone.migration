@@ -423,7 +423,7 @@ def import_members(options):
             from Products.PlonePAS.utils import scale_image
 
             try:
-                scaled, mimetype = scale_image(open(portrait_filename, 'rb'))
+                scaled, mimetype = scale_image(open(os.path.join(options.input_directory, '..', portrait_filename), 'rb'))
             except:
                 continue
 
@@ -1378,7 +1378,6 @@ def import_plone(app, options):
 #    import_blog_entries(options)
     fixup_geolocation(options)
     fixup_uids(options)
-
     options.plone.restrictedTraverse('@@rebuild-backreferences')()
 
     return plone.absolute_url(1)
