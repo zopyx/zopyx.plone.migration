@@ -43,6 +43,7 @@ from Testing.makerequest import makerequest
 from OFS.interfaces import IOrderedContainer
 from Products.CMFCore.WorkflowCore import WorkflowException
 from AccessControl.SecurityManagement import newSecurityManager
+from memory_profiler import profile
 
 # check for LinguaPlone
 try:
@@ -182,7 +183,7 @@ def export_members(options):
 
 def newCounter():
     i = 0
-    while 1:
+    while True:
         yield i
         i += 1
 
@@ -338,6 +339,7 @@ def export_placeful_workflow(options):
         log('Exported PlacefulWorkflow %s to %s' % (id_, zexp_name))
 
 
+@profile
 def export_content(options):
 
     log('Exporting content')
@@ -363,10 +365,10 @@ def export_content(options):
 
         try:
             obj = brain.getObject()
-        except Exception, e:
+        except Exception as e:
             try:
                 obj = options.plone.unrestrictedTraverse(brain.getPath())
-            except Exception, e:
+            except Exception as e:
                 errors.append(dict(path=brain.getPath(), error=e))
                 continue
 
@@ -503,7 +505,7 @@ def export_content(options):
         pickle_file = open(pickle_name, 'wb')
         try:
             cPickle.dump(obj_data, pickle_file)
-        except Exception, msg:
+        except Exception as msg:
             log("%s: %s (%s)" % (Exception, msg, obj_data))
         pickle_file.close()
 

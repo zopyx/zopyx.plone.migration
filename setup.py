@@ -27,7 +27,8 @@ setup(
     install_requires=[
         'setuptools',
         'lxml',
-        'uuid'
+        'uuid',
+        'memory_profiler'
         # -*- Extra requirements: -*-
     ],
     entry_points="""

@@ -199,7 +199,7 @@ def import_members(options):
             pr.addMember(username,
                          get(section, 'password'),
                          roles=roles)
-        except Exception, e:
+        except Exception as e:
             errors.append(dict(username=username, error=e))
             continue
         count += 1
@@ -509,7 +509,7 @@ def update_content(options, new_obj, old_uid):
                 v = urllib2.urlopen(v).read()
             try:
                 field.set(new_obj, v)
-            except Exception, e:
+            except Exception as e:
                 log('Could not update field %s of %s (error=%s)' %
                     (field.getName(), new_obj.absolute_url(), e))
 
@@ -569,7 +569,7 @@ def create_new_obj(options, folder, old_uid):
             v = urllib2.urlopen(v).read()
         try:
             field.set(new_obj, v)
-        except Exception, e:
+        except Exception as e:
             log('Unable to set %s for %s (%s)' %
                 (k, new_obj.absolute_url(1), e))
 
@@ -661,7 +661,7 @@ def import_content(options):
             continue
         try:
             new_obj = folder_create(options.plone, path, portal_type)
-        except Exception, msg:
+        except Exception as msg:
             log('Could not create %s: %s' % (path, msg))
             continue
         if uid:
@@ -688,7 +688,7 @@ def import_content(options):
         for uid in uids:
             try:
                 create_new_obj(options, current, uid)
-            except ValueError, msg:
+            except ValueError as msg:
                 log('Could not create new object: %s' % msg)
 
         log('--> %d children created' % len(uids))
