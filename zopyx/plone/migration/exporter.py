@@ -74,7 +74,7 @@ def log(s):
 def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(options.export_directory, '%s_plonegazette_subscribers' % _getUID(newsletter))
     log('Exporting subscribers for %s to %s' % (newsletter.absolute_url(), ini_fn))
-    fp = file(ini_fn, 'w')
+    fp = open(ini_fn, 'w')
     if 'subscribers' in newsletter.objectIds():
         sfolder = newsletter.subscribers
     elif 'subscribers' in newsletter.aq_parent.objectIds():
@@ -96,7 +96,7 @@ def export_plonegazette(options, newsletter):
 def export_groups(options):
 
     log('Exporting groups')
-    fp = file(os.path.join(options.export_directory, 'groups.ini'), 'w')
+    fp = open(os.path.join(options.export_directory, 'groups.ini'), 'w')
     acl_users = options.plone.acl_users
     if hasattr(acl_users, 'source_groups'):
         # yeah, its pas
@@ -124,7 +124,7 @@ def export_groups(options):
 def export_members(options):
 
     log('Exporting Members')
-    fp = file(os.path.join(options.export_directory, 'members.ini'), 'w')
+    fp = open(os.path.join(options.export_directory, 'members.ini'), 'w')
 
     acl_users = options.plone.acl_users
     users = acl_users.getUserNames()
@@ -207,7 +207,7 @@ def export_structure(options):
                 _export_structure(fp, child, counter)
 
     log('Exporting structure')
-    fp = file(os.path.join(options.export_directory, 'structure.ini'), 'w')
+    fp = open(os.path.join(options.export_directory, 'structure.ini'), 'w')
     _export_structure(fp, options.plone, newCounter())
     fp.close()
 
@@ -305,7 +305,9 @@ def export_placeful_workflow(options):
     for id_ in pwt.objectIds():
         zexp = pwt.manage_exportObject(id_, download=1)
         zexp_name = os.path.join(export_dir, id_ + '.zexp')
-        file(zexp_name, 'wb').write(zexp)
+        fp = open(zexp_name, 'wb')
+        fp.write(zexp)
+        fp.close()
         log('Exported PlacefulWorkflow %s to %s' % (id_, zexp_name))
 
 def export_content(options):
@@ -320,7 +322,6 @@ def export_content(options):
         brains = catalog()
     log('%d items' % len(brains))
 
-    fp = file(os.path.join(options.export_directory, 'content.ini'), 'w')
     errors = list()
     num_exported = 0
     stats = dict()
@@ -367,7 +368,7 @@ def export_content(options):
                     continue
                 if field.type in ('image', 'file'):
                     ext_filename = os.path.join(export_dir, '%s_%s.bin' % (_getUID(obj), name))
-                    extfp = file(ext_filename, 'wb')
+                    extfp = open(ext_filename, 'wb')
                     try:
                         data = str(value.data)
                     except:
@@ -444,6 +445,7 @@ def export_content(options):
                 obj_data['topic_criterions'][crit_id]['path'] = _getRelativePath(crit, options.plone)
 
         # write to INI file
+        fp = open(os.path.join(options.export_directory, 'content.ini'), 'a', 1)
         print >>fp, '[%s]' % _getUID(obj)
         print >>fp, 'path = %s' % _getRelativePath(obj, options.plone)
         print >>fp, 'id = %s' % obj.getId()
@@ -461,15 +463,16 @@ def export_content(options):
         if obj.portal_type == "Topic":
             print >>fp, 'topic_criterions = %s' % obj_data['metadata']['topic_criterions']
         print >>fp
+        fp.close()
 
         # dump data as pickle
         pickle_name = os.path.join(export_dir, _getUID(obj))
+        pickle_file = open(pickle_name, 'wb')
         try:
-            cPickle.dump(obj_data, file(pickle_name, 'wb'))
+            cPickle.dump(obj_data, pickle_file)
         except Exception, msg:
             log("%s: %s (%s)" % (Exception, msg, obj_data))
-
-    fp.close()
+        pickle_file.close()
 
     if errors:
         log('Errors')
