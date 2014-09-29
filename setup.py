@@ -6,8 +6,8 @@ version = '0.2.9-dev'
 setup(name='zopyx.plone.migration',
       version=version,
       description="Export/import scripts for migration Plone 2+3 to Plone 4",
-      long_description=open("README.txt").read() + "\n" +
-                       open(os.path.join("docs", "HISTORY.txt")).read(),
+      long_description=open("README.rst").read() + "\n" +
+                       open(os.path.join("docs", "HISTORY.rst")).read(),
       # Get more strings from
       # http://pypi.python.org/pypi?:action=list_classifiers
       classifiers=[
