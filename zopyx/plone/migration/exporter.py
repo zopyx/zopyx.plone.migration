@@ -403,7 +403,10 @@ def export_content(options):
                     except:
                         data = value
                     extfp.write(data)
-                    extfp.close()
+                    #extfp.close()
+                    f_close_sync(extfp)  # gc
+                    del extfp  # gc
+                    del data  # gc
                     value = 'file://%s/%s_%s.bin' % (
                         os.path.abspath(export_dir), _getUID(obj), name)
                 elif field.type == 'reference':
@@ -411,6 +414,7 @@ def export_content(options):
                 if name == "language" and not value:
                     value = options.plone.portal_languages.getDefaultLanguage()
                 obj_data['schemadata'][name] = value
+                del value  # gc
 
         if obj.portal_type == 'Newsletter':
             obj_data['schemadata']['text'] = obj.text
@@ -496,7 +500,9 @@ def export_content(options):
         if obj.portal_type == "Topic":
             print >>fp, 'topic_criterions = %s' % obj_data['metadata']['topic_criterions']  # noqa
         print >>fp
-        fp.close()
+        #fp.close()
+        f_close_sync(fp)  # gc
+        del fp  # gc
 
         # dump data as pickle
         pickle_name = os.path.join(export_dir, _getUID(obj))
@@ -505,7 +511,21 @@ def export_content(options):
             cPickle.dump(obj_data, pickle_file)
         except Exception, msg:
             log("%s: %s (%s)" % (Exception, msg, obj_data))
-        pickle_file.close()
+        #pickle_file.close()
+        f_close_sync(pickle_file)  # gc
+        del pickle_file  # gc
+
+        value = None
+        del value
+
+        obj_data = None
+        del obj_data
+
+        obj = None
+        del obj
+
+        if i == 300:
+            import pdb; pdb.set_trace()
 
     if errors:
         log('Errors')
@@ -516,6 +536,12 @@ def export_content(options):
     log('%d items exported' % num_exported)
     for k in sorted(stats.keys()):
         log('%-40s %d' % (k, stats[k]))
+
+
+def f_close_sync(fp):
+    fp.flush()
+    os.fsync(fp.fileno())
+    fp = None
 
 
 def export_site(app, options):
