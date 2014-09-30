@@ -353,13 +353,18 @@ def export_content(options):
     errors = []
     num_exported = 0
     stats = {}
+
     num_brains = len(brains)
+    bsize = options.batch_size
+    bstart = options.batch_start
+    if bsize:
+        brains = brains[bstart:bstart + bsize]
     for i, brain in enumerate(brains):
         if brain.getId in IGNORED_IDS:
             continue
 
         if options.verbose:
-            log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
+            log('--> (%d/%d) %s' % (i + bstart, num_brains, brain.getPath()))
 
         try:
             obj = brain.getObject()
@@ -398,6 +403,7 @@ def export_content(options):
                     ext_filename = os.path.join(
                         export_dir, '%s_%s.bin' % (_getUID(obj), name))
                     extfp = open(ext_filename, 'wb')
+                    data = ''
                     try:
                         data = str(value.data)
                     except:
@@ -524,9 +530,6 @@ def export_content(options):
         obj = None
         del obj
 
-        if i == 300:
-            import pdb; pdb.set_trace()
-
     if errors:
         log('Errors')
         for e in errors:
@@ -577,10 +580,12 @@ def export_site(app, options):
     options.plone = makerequest(plone)
 
     # The export show starts here
-    export_groups(options)
-    export_members(options)
-    export_placeful_workflow(options)
-    export_structure(options)
+    if options.batch_start == 0:
+        # only do these exports, when we don't batch or on a starting batch
+        export_groups(options)
+        export_members(options)
+        export_placeful_workflow(options)
+        export_structure(options)
     export_content(options)
 
     log('Export done...releasing memory und Tschuessn')
@@ -601,10 +606,14 @@ def main():
                       action='store', default=IGNORED_TYPES,
                       help="Provide comma separated List of Portal Types "
                       "to ignore")
+    parser.add_option('-b', '--batch_size', dest='batch_size', default=0)
+    parser.add_option('-s', '--batch_start', dest='batch_start', default=0)
     options, args = parser.parse_args()
     options.app = app
     if isinstance(options.ignored_types, basestring):
         options.ignored_types = options.ignored_types.split(',')
+    options.batch_start = int(options.batch_start)
+    options.batch_size = int(options.batch_size)
     export_site(app, options)
     transaction.commit()
 
