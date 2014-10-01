@@ -667,7 +667,10 @@ def import_content(options):
         if portal_type in ('Newsletter', 'NewsletterTheme'):
             import_plonegazette_subscribers(options, new_obj, uid)
 
-    transaction.savepoint()
+        if i and i % 50 == 0:
+            transaction.commit()
+
+    # transaction.savepoint()
 
     # Now recreate the child objects within
     log('Creating content')
@@ -688,16 +691,22 @@ def import_content(options):
                 log('Could not traverse to object at %s: %s. '
                     'Continuing with next.' % (path, msg))
                 continue
-        for uid in uids:
+        for i2, uid in enumerate(uids):
             try:
                 create_new_obj(options, current, uid)
             except ValueError as msg:
                 log('Could not create new object: %s' % msg)
 
+            if i2 % 50 == 0:
+                transaction.commit()
+
         log('--> %d children created' % len(uids))
 
-        if i % 10 == 0:
-            transaction.savepoint()
+        if i % 50 == 0:
+            transaction.commit()
+
+        # if i % 10 == 0:
+        #    transaction.savepoint()
 
     # set default pages
     log('Setting default pages')
