@@ -28,10 +28,11 @@ from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import \
 
 # check for LinguaPlone
 try:
-    import Products.LinguaPlone
+    import Products.LinguaPlone  # noqa
     HAS_LINGUAPLONE = True
 except ImportError:
     HAS_LINGUAPLONE = False
+
 
 parser = OptionParser()
 parser.add_option(
@@ -103,9 +104,7 @@ FIXUIDTYPES = (
     'Document',
     'Page',
     'News Item',
-    'ENLIssue',
-    'WalserDocument',
-    'WalserTimelineEvent'
+    'ENLIssue'
 )
 
 PT_REPLACE_MAP = {
@@ -116,8 +115,7 @@ PT_REPLACE_MAP = {
     #    'Topic': 'Collection',
 }
 LAYOUT_REPLACE_MAP = {
-    ('WalserDictionary', 'base_view'): 'walserdictionary_view',
-    ('WalserTimeline', 'base_view'): 'walsertimeline_view',
+    # ('CONTENTTYPE', 'REPLACEMENT_VIEW'): 'ORIGINAL_VIEW',
 }
 
 
@@ -138,7 +136,7 @@ def import_plonegazette_subscribers(options, newsletter, old_uid):
         parent = newsletter.aq_parent
     for section in CP.sections():
         id_ = get(section, 'id')
-        if not id_ in parent.objectIds():
+        if id_ not in parent.objectIds():
             parent.invokeFactory('ENLSubscriber', id=id_)
             subscriber = parent[id_]
             subscriber.setTitle(get(section, 'fullname'))
@@ -199,7 +197,7 @@ def import_members(options):
             pr.addMember(username,
                          get(section, 'password'),
                          roles=roles)
-        except Exception, e:
+        except Exception as e:
             errors.append(dict(username=username, error=e))
             continue
         count += 1
@@ -250,7 +248,7 @@ def folder_create(root, dirname, portal_type):
     for c in components[:-1]:
         if not c:
             continue
-        if not c in current.objectIds():
+        if c not in current.objectIds():
             _createObjectByType('Folder', current, id=c)
             # current.invokeFactory('Folder', id=c)
         current = getattr(current, c)
@@ -353,10 +351,10 @@ def setContentType(obj, content_type):
     if obj.portal_type == 'File':
         obj.__annotations__[
             'Archetypes.storage.AnnotationStorage-file'
-            ].setContentType(content_type)
+        ].setContentType(content_type)
         obj.__annotations__[
             'Archetypes.storage.AnnotationStorage-file'
-            ].setFilename(obj.getId())
+        ].setFilename(obj.getId())
 
 
 def setLocalRolesBlock(obj, value):
@@ -460,7 +458,7 @@ def setReviewState(content, state_id, acquire_permissions=False,
         'comments': "Setting state to %s" % state_id,
         'review_state': state_id,
         'time': DateTime(),
-        }
+    }
 
     # Updating wf_state from keyword args
     for k in kw.keys():
@@ -509,7 +507,7 @@ def update_content(options, new_obj, old_uid):
                 v = urllib2.urlopen(v).read()
             try:
                 field.set(new_obj, v)
-            except Exception, e:
+            except Exception as e:
                 log('Could not update field %s of %s (error=%s)' %
                     (field.getName(), new_obj.absolute_url(), e))
 
@@ -547,7 +545,7 @@ def create_new_obj(options, folder, old_uid):
         if constrainsMode is not None:
             folder.setConstrainTypesMode(0)
         pt = obj_data['metadata']['portal_type']
-        if not id_ in folder.objectIds():
+        if id_ not in folder.objectIds():
             _createObjectByType(
                 PT_REPLACE_MAP.get(pt, pt),
                 folder,
@@ -569,7 +567,7 @@ def create_new_obj(options, folder, old_uid):
             v = urllib2.urlopen(v).read()
         try:
             field.set(new_obj, v)
-        except Exception, e:
+        except Exception as e:
             log('Unable to set %s for %s (%s)' %
                 (k, new_obj.absolute_url(1), e))
 
@@ -661,7 +659,7 @@ def import_content(options):
             continue
         try:
             new_obj = folder_create(options.plone, path, portal_type)
-        except Exception, msg:
+        except Exception as msg:
             log('Could not create %s: %s' % (path, msg))
             continue
         if uid:
@@ -688,7 +686,7 @@ def import_content(options):
         for uid in uids:
             try:
                 create_new_obj(options, current, uid)
-            except ValueError, msg:
+            except ValueError as msg:
                 log('Could not create new object: %s' % msg)
 
         log('--> %d children created' % len(uids))
