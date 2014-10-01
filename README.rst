@@ -16,7 +16,7 @@ Installation
 Add the following to your buildout::
 
     [buildout]
-    parts = 
+    parts =
         exportimport
 
     [exportimport]
@@ -64,6 +64,12 @@ Options:
                               ignore. Enclose names which include a space
                               within quotes.
                               E.g. ``-i 'Address Book',FormFolder``.
+    -b, --batch_size          Batch size. Defaults to ``0``. If bigger than 0,
+                              the content export is batched.
+    -s, --batch_start         Batch start. Defaults to ``0``. If bigger than 0,
+                              it's assumed, that an initial export was already
+                              done and only the content will be exported,
+                              starting at batch_start.
 
 
 The exporter will create a self-contained directory with the exported data

@@ -344,8 +344,12 @@ def export_content(options):
 
     log('Exporting content')
     catalog = options.plone.portal_catalog
+
     export_dir = os.path.join(options.export_directory, 'content')
-    os.mkdir(export_dir)
+
+    if options.batch_start == 0:
+        # only create initially
+        os.mkdir(export_dir)
     if HAS_LINGUAPLONE:
         brains = catalog(Language="all")
     else:
@@ -355,13 +359,18 @@ def export_content(options):
     errors = []
     num_exported = 0
     stats = {}
+
     num_brains = len(brains)
+    bsize = options.batch_size
+    bstart = options.batch_start
+    if bsize:
+        brains = brains[bstart:bstart + bsize]
     for i, brain in enumerate(brains):
         if brain.getId in IGNORED_IDS:
             continue
 
         if options.verbose:
-            log('--> (%d/%d) %s' % (i, num_brains, brain.getPath()))
+            log('--> (%d/%d) %s' % (i + bstart, num_brains, brain.getPath()))
 
         try:
             obj = brain.getObject()
@@ -400,12 +409,16 @@ def export_content(options):
                     ext_filename = os.path.join(
                         export_dir, '%s_%s.bin' % (_getUID(obj), name))
                     extfp = open(ext_filename, 'wb')
+                    data = ''
                     try:
                         data = str(value.data)
                     except:
                         data = value
                     extfp.write(data)
-                    extfp.close()
+                    #extfp.close()
+                    f_close_sync(extfp)  # gc
+                    del extfp  # gc
+                    del data  # gc
                     value = 'file://%s/%s_%s.bin' % (
                         os.path.abspath(export_dir), _getUID(obj), name)
                 elif field.type == 'reference':
@@ -413,6 +426,7 @@ def export_content(options):
                 if name == "language" and not value:
                     value = options.plone.portal_languages.getDefaultLanguage()
                 obj_data['schemadata'][name] = value
+                del value  # gc
 
         if obj.portal_type == 'Newsletter':
             obj_data['schemadata']['text'] = obj.text
@@ -498,7 +512,9 @@ def export_content(options):
         if obj.portal_type == "Topic":
             print >>fp, 'topic_criterions = %s' % obj_data['metadata']['topic_criterions']  # noqa
         print >>fp
-        fp.close()
+        #fp.close()
+        f_close_sync(fp)  # gc
+        del fp  # gc
 
         # dump data as pickle
         pickle_name = os.path.join(export_dir, _getUID(obj))
@@ -507,7 +523,18 @@ def export_content(options):
             cPickle.dump(obj_data, pickle_file)
         except Exception as msg:
             log("%s: %s (%s)" % (Exception, msg, obj_data))
-        pickle_file.close()
+        #pickle_file.close()
+        f_close_sync(pickle_file)  # gc
+        del pickle_file  # gc
+
+        value = None
+        del value
+
+        obj_data = None
+        del obj_data
+
+        obj = None
+        del obj
 
     if errors:
         log('Errors')
@@ -520,6 +547,12 @@ def export_content(options):
         log('%-40s %d' % (k, stats[k]))
 
 
+def f_close_sync(fp):
+    fp.flush()
+    os.fsync(fp.fileno())
+    fp = None
+
+
 def export_site(app, options):
 
     plone = app.unrestrictedTraverse(options.path, None)
@@ -528,14 +561,15 @@ def export_site(app, options):
 
     site_id = plone.getId()
     export_dir = os.path.join(options.output, site_id)
-    if os.path.exists(export_dir):
+    if os.path.exists(export_dir) and options.batch_start == 0:
+        # only delete/create initially
         try:
             shutil.rmtree(export_dir)
         except:
             log('Error in removing existing export directory %s.\n'
                 'You have to remove it manually' % export_dir)
             return
-    os.makedirs(export_dir)
+        os.makedirs(export_dir)
 
     log('Exporting Plone site: %s' % options.path)
     log('Export directory:  %s' % os.path.abspath(export_dir))
@@ -553,10 +587,12 @@ def export_site(app, options):
     options.plone = makerequest(plone)
 
     # The export show starts here
-    export_groups(options)
-    export_members(options)
-    export_placeful_workflow(options)
-    export_structure(options)
+    if options.batch_start == 0:
+        # only do these exports, when we don't batch or on a starting batch
+        export_groups(options)
+        export_members(options)
+        export_placeful_workflow(options)
+        export_structure(options)
     export_content(options)
 
     log('Export done...releasing memory und Tschuessn')
@@ -577,10 +613,14 @@ def main():
                       action='store', default=IGNORED_TYPES,
                       help="Provide comma separated List of Portal Types "
                       "to ignore")
+    parser.add_option('-b', '--batch_size', dest='batch_size', default=0)
+    parser.add_option('-s', '--batch_start', dest='batch_start', default=0)
     options, args = parser.parse_args()
     options.app = app
     if isinstance(options.ignored_types, basestring):
         options.ignored_types = options.ignored_types.split(',')
+    options.batch_start = int(options.batch_start)
+    options.batch_size = int(options.batch_size)
     export_site(app, options)
     transaction.commit()
 

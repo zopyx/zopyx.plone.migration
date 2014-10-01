@@ -4,6 +4,9 @@ Changes
 0.2.9-dev (unreleased)
 ----------------------
 
+- Avoid memory leaks by adding the posibility of batching content exports.
+  [thet]
+
 - Fix setLayout and reference field importing.
   [jensens]
 
