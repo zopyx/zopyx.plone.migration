@@ -10,7 +10,8 @@ Changes
 - Fix setLayout and reference field importing.
   [jensens]
 
-- Handle LinguaPlone translations.
+- Handle LinguaPlone translations. Note, in cases where Folders and Documents
+  are mixed within a Folder, the correct order isn't preserved.
   [jensens]
 
 - Deal with exporting Plone 2.1 GRUF groups.
