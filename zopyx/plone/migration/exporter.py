@@ -215,6 +215,13 @@ def export_structure(options):
         print >>fp
         for child in children:
             if child.getId() in IGNORED_IDS:
+                if options.verbose:
+                    log("    skipping ignored id '%s'" % child.getId())
+                continue
+            if child.portal_type in options.ignored_types:
+                if options.verbose:
+                    log("    skipping ignored portal_type '%s'"
+                        % child.portal_type)
                 continue
             if getattr(child.aq_inner, 'isPrincipiaFolderish', 0):
                 _export_structure(fp, child, counter)
@@ -367,6 +374,13 @@ def export_content(options):
         brains = brains[bstart:bstart + bsize]
     for i, brain in enumerate(brains):
         if brain.getId in IGNORED_IDS:
+            if options.verbose:
+                log("    skipping ignored id '%s'" % brain.getId)
+            continue
+        if brain.portal_type in options.ignored_types:
+            if options.verbose:
+                log("    skipping ignored portal_type '%s'"
+                    % brain.portal_type)
             continue
 
         if options.verbose:
@@ -390,11 +404,6 @@ def export_content(options):
         except AttributeError:
             errors.append(dict(path=brain.getPath(), error='no schema'))
             schema = None
-
-        if obj.portal_type in options.ignored_types:
-            if options.verbose:
-                log("    skipping ignored portal_type '%s'" % obj.portal_type)
-            continue
 
         obj_data = dict(schemadata=dict(), metadata=dict())
         if schema:
