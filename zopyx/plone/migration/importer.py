@@ -687,9 +687,8 @@ def import_content(options):
                 continue
             try:
                 current = options.plone.restrictedTraverse(path)
-            except AttributeError as msg:
-                log('Could not traverse to object at %s: %s. '
-                    'Continuing with next.' % (path, msg))
+            except:
+                log('Could not traverse to object at %s.' % path)
                 continue
         for i2, uid in enumerate(uids):
             try:
