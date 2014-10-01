@@ -682,7 +682,12 @@ def import_content(options):
             path = CP.get(section, 'path')
             if CP.get(section, 'portal_type') in IGNORED_TYPES:
                 continue
-            current = options.plone.restrictedTraverse(path)
+            try:
+                current = options.plone.restrictedTraverse(path)
+            except AttributeError as msg:
+                log('Could not traverse to object at %s: %s. '
+                    'Continuing with next.' % (path, msg))
+                continue
         for uid in uids:
             try:
                 create_new_obj(options, current, uid)
