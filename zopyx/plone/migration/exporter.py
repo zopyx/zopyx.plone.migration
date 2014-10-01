@@ -386,10 +386,10 @@ def export_content(options):
 
         try:
             obj = brain.getObject()
-        except Exception as e:
+        except Exception, e:
             try:
                 obj = options.plone.unrestrictedTraverse(brain.getPath())
-            except Exception as e:
+            except Exception, e:
                 errors.append(dict(path=brain.getPath(), error=e))
                 continue
 
@@ -528,7 +528,7 @@ def export_content(options):
         pickle_file = open(pickle_name, 'wb')
         try:
             cPickle.dump(obj_data, pickle_file)
-        except Exception as msg:
+        except Exception, msg:
             log("%s: %s (%s)" % (Exception, msg, obj_data))
         #pickle_file.close()
         f_close_sync(pickle_file)  # gc
