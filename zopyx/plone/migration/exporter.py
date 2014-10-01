@@ -43,7 +43,6 @@ from Testing.makerequest import makerequest
 from OFS.interfaces import IOrderedContainer
 from Products.CMFCore.WorkflowCore import WorkflowException
 from AccessControl.SecurityManagement import newSecurityManager
-from memory_profiler import profile
 
 # check for LinguaPlone
 try:
@@ -346,7 +345,6 @@ def export_placeful_workflow(options):
         log('Exported PlacefulWorkflow %s to %s' % (id_, zexp_name))
 
 
-@profile
 def export_content(options):
 
     log('Exporting content')

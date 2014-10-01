@@ -28,8 +28,6 @@ setup(
         'setuptools',
         'lxml',
         'uuid',
-        'memory_profiler'
-        # -*- Extra requirements: -*-
     ],
     entry_points="""
     [console_scripts]
