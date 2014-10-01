@@ -33,6 +33,7 @@ try:
 except ImportError:
     HAS_LINGUAPLONE = False
 
+
 parser = OptionParser()
 parser.add_option(
     '-u',
@@ -103,9 +104,7 @@ FIXUIDTYPES = (
     'Document',
     'Page',
     'News Item',
-    'ENLIssue',
-    'WalserDocument',
-    'WalserTimelineEvent'
+    'ENLIssue'
 )
 
 PT_REPLACE_MAP = {
@@ -116,8 +115,7 @@ PT_REPLACE_MAP = {
     #    'Topic': 'Collection',
 }
 LAYOUT_REPLACE_MAP = {
-    ('WalserDictionary', 'base_view'): 'walserdictionary_view',
-    ('WalserTimeline', 'base_view'): 'walsertimeline_view',
+    # ('CONTENTTYPE', 'REPLACEMENT_VIEW'): 'ORIGINAL_VIEW',
 }
 
 
