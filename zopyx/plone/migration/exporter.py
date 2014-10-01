@@ -342,8 +342,12 @@ def export_content(options):
 
     log('Exporting content')
     catalog = options.plone.portal_catalog
+
     export_dir = os.path.join(options.export_directory, 'content')
-    os.mkdir(export_dir)
+
+    if options.batch_start == 0:
+        # only create initially
+        os.mkdir(export_dir)
     if HAS_LINGUAPLONE:
         brains = catalog(Language="all")
     else:
@@ -555,14 +559,15 @@ def export_site(app, options):
 
     site_id = plone.getId()
     export_dir = os.path.join(options.output, site_id)
-    if os.path.exists(export_dir):
+    if os.path.exists(export_dir) and options.batch_start == 0:
+        # only delete/create initially
         try:
             shutil.rmtree(export_dir)
         except:
             log('Error in removing existing export directory %s.\n'
                 'You have to remove it manually' % export_dir)
             return
-    os.makedirs(export_dir)
+        os.makedirs(export_dir)
 
     log('Exporting Plone site: %s' % options.path)
     log('Export directory:  %s' % os.path.abspath(export_dir))
