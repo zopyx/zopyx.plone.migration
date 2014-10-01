@@ -392,7 +392,7 @@ def import_members(options):
         member_props['position'] = USERDATASCHEMA_POSITION_TAGS.get(to_unicode(vcard.get('position', '')))
         member_props['academic'] = USERDATASCHEMA_ACADEMIC_TAGS.get(to_unicode(vcard.get('academic', '')))
         member_props['phone'] = to_unicode(vcard.get('fon1', ''))
-        member_props['cv'] = to_unicode(vcard.get('bemerkung', ''))
+        member_props['description'] = to_unicode(vcard.get('bemerkung', ''))
 
         # datetime
         v = vcard.get('geburtstag')
@@ -400,9 +400,9 @@ def import_members(options):
             member_props['birthday'] = v
 
         # list properties
-        member_props['specialties'] = '\n'.join([t.strip() for t in (vcard.get('fachgebiete') or '').split(',') if t.strip()])
-        member_props['expertise'] =   '\n'.join([t.strip() for t in (vcard.get('expertise') or '').split(',') if t.strip()])
-        member_props['memberships'] = '\n'.join([t.strip() for t in (vcard.get('mitgliedschaften') or '').split(',') if t.strip()])
+        member_props['specialties'] = [t.strip() for t in (vcard.get('fachgebiete') or '').split(',') if t.strip()]
+        member_props['expertise'] =   [t.strip() for t in (vcard.get('expertise') or '').split(',') if t.strip()]
+        member_props['memberships'] = [t.strip() for t in (vcard.get('mitgliedschaften') or '').split(',') if t.strip()]
 
 #        member_props['projects'] =    [t for t in (vcard.get('projekte') or '').split(',') if t]
 #        member_props['db_projects'] = vcard.get('db_projekte', [])
@@ -1371,6 +1371,7 @@ def import_plone(app, options):
     if options.import_members:
         import_members(options)
     
+    return plone.absolute_url(1)
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
     import_placeful_workflow(options)
