@@ -1225,36 +1225,27 @@ def create_new_obj(options, folder, old_uid):
     new_obj.reindexObject()
 
 def fixup_geolocation(options):
+    
+    members_ini = os.path.join(options.input_directory, 'members.ini')
 
-    structure_ini = os.path.join(options.input_directory, 'content.ini')
     CP = ConfigParser()
-    CP.read([structure_ini])
-    get = CP.get
+    CP.read([members_ini])
 
-    sections = CP.sections()
+    for section in CP.sections():
+        vcard = json.loads(CP.get(section, 'vcard'))
+        username = CP.get(section, 'username')
+        institution = vcard.get('institutsLocation')
+#        projekte = vcard['projekte']
 
-    # Now recreate the child objects within
-    log('Fixup geolocation')
-    for i, section in enumerate(sections):
-        portal_type = CP.get(section, 'portal_type')
-        if portal_type in ('Projektdarstellung', 'PraxisBericht'):
-            path_ = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path_, None)
-            if obj is None:
-                continue
-            old_uid = CP.get(section, 'uid')
-            pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
-            obj_data = cPickle.load(file(pickle_filename))
-            schemadata = obj_data['schemadata']
-            institutsLocation = schemadata['institutsLocation']
-            brains = options.plone.portal_catalog(getId=institutsLocation)
-            intid_util = getUtility(IIntIds)
+        if institution:
+            brains = options.plone.portal_catalog(getId=institution)
             if brains:
-                geo_id  = intid_util.getId(brains[0].getObject())
-                obj.location_reference = [geo_id]
-            else:
-                print 'no GEO object found {}'.format(institutsLocation)
-
+                from plone.app.event.dx.behaviors import IEventAttendees
+                o = brains[0].getObject()
+                adapted = IEventAttendees(o)
+                attendees = list(adapted.attendees or ())
+                attendees.append(username)
+                adapted.attendees = attendees
 
     transaction.savepoint()
 
@@ -1371,7 +1362,6 @@ def import_plone(app, options):
     if options.import_members:
         import_members(options)
     
-    return plone.absolute_url(1)
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
     import_placeful_workflow(options)
