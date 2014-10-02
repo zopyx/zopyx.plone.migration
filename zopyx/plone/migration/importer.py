@@ -25,6 +25,9 @@ from Products.CMFPlacefulWorkflow.WorkflowPolicyConfig import \
     WorkflowPolicyConfig
 from Products.CMFPlacefulWorkflow.PlacefulWorkflowTool import \
     WorkflowPolicyConfig_id
+from Products.CMFCore.interfaces import IPropertiesTool
+from zope.component import queryUtility
+
 
 # check for LinguaPlone
 try:
@@ -270,6 +273,21 @@ def folder_create(root, dirname, portal_type):
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
     return current[components[-1]]
+
+
+def linkintegrityswitcher(val=None):
+    """Returns or sets the portals linkintegrity setting.
+    If called without an argument, the setting is returned.. Else the setting
+    is set according to val and then returned.
+    """
+    # switch linkintegrity temp off
+    ptool = queryUtility(IPropertiesTool)
+    site_props = getattr(ptool, 'site_properties', None)
+
+    if val is not None:
+        site_props.manage_changeProperties(enable_link_integrity_checks=val)
+
+    return site_props.getProperty('enable_link_integrity_checks', False)
 
 
 def myRestrictedTraverse(obj, path):
@@ -871,11 +889,20 @@ def import_plone(options):
         site_id,
         profiles=profiles
     )
+
+    # Turn temporarily off
+    linkintegrity = linkintegrityswitcher()
+    linkintegrityswitcher(False)
+
     import_members(options)
     import_groups(options)
     import_placeful_workflow(options)
     import_content(options)
     fixup_uids(options)
+
+    # Set back to what it was set before
+    linkintegrityswitcher(linkintegrity)
+
     return options.plone.absolute_url(1)
 
 
