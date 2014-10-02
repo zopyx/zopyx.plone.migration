@@ -41,6 +41,7 @@ from plone.app.event.dx.behaviors import IEventBasic
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
 from plone.app.event.dx.behaviors import data_postprocessing
+from plone.app.event.dx.behaviors import IEventAttendees
 from zope.intid.interfaces import IIntIds
 
 import sys
@@ -920,7 +921,8 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.description = v
                 continue
             if k == 'projektTeam':
-                new_obj.team = v
+                adapted = IEventAttendees(new_obj)
+                adapted.attendees = list(v) 
                 continue
             if k == 'projektstart' and v:
                 new_obj.start = datetime(v.year(), v. month(), v.day())
@@ -1240,11 +1242,11 @@ def fixup_geolocation(options):
         if institution:
             brains = options.plone.portal_catalog(getId=institution)
             if brains:
-                from plone.app.event.dx.behaviors import IEventAttendees
                 o = brains[0].getObject()
                 adapted = IEventAttendees(o)
                 attendees = list(adapted.attendees or ())
-                attendees.append(username)
+                if not username in attendees:
+                    attendees.append(username)
                 adapted.attendees = attendees
 
     transaction.savepoint()
