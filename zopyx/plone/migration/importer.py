@@ -1166,7 +1166,7 @@ def create_new_obj(options, folder, old_uid):
             
         if portal_type_ == 'Medienbeitrag':
 
-            setModificationDate(new_obj, obj_data['metadata']['created'])
+            setCreationDate(new_obj, obj_data['metadata']['modified'])
 
             if k == 'partner':
                 new_obj.partner = v
