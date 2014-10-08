@@ -576,7 +576,8 @@ def export_site(app, options):
             log('Error in removing existing export directory %s.\n'
                 'You have to remove it manually' % export_dir)
             return
-    os.makedirs(export_dir)
+    if options.batch_start == 0:
+        os.makedirs(export_dir)
 
     log('Exporting Plone site: %s' % options.path)
     log('Export directory:  %s' % os.path.abspath(export_dir))
