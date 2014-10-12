@@ -42,6 +42,7 @@ from plone import namedfile
 from plone.app.textfield.value import RichTextValue
 from plone.app.event.dx.behaviors import data_postprocessing
 from plone.app.event.dx.behaviors import IEventAttendees
+from eteaching.policy.behaviors import IEventClassification
 from zope.intid.interfaces import IIntIds
 
 import sys
@@ -781,9 +782,6 @@ def create_new_obj(options, folder, old_uid):
         if portal_type_ not in allowed_types:
             return
 
-#    if portal_type_ not in ('Veranstaltung', 'Weiterbildung'):
-#        return
-
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
             constrainsMode = folder.getConstrainTypesMode()
@@ -808,7 +806,6 @@ def create_new_obj(options, folder, old_uid):
     for k,v in obj_data['schemadata'].items():
 
         if k in ('title', 
-                'description', 
                 'remote_url',
                 'location',
                 'event_url',
@@ -818,6 +815,12 @@ def create_new_obj(options, folder, old_uid):
                 'contact_name'):
             setattr(new_obj, k, v)
             continue
+
+        if k == 'description':
+            old_description = getattr(new_obj, 'description', None)
+            if not old_description:
+                new_obj.description = v
+                continue
 
         if k in ('text',):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
@@ -944,10 +947,13 @@ def create_new_obj(options, folder, old_uid):
             if k == 'kategorie':
                 new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
                 continue
+            if k == 'kategorie':
+                new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
+                continue
 
         if portal_type_ == 'PraxisBericht':
             if k == 'anmoderation':
-                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                new_obj.subjects = v.split(',')
                 continue
 
             if k == 'PDFBericht':
@@ -980,6 +986,9 @@ def create_new_obj(options, folder, old_uid):
             if k == 'intro_text':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
+            if k == 'teaser':
+                new_obj.description = v
+                continue
 
         if portal_type_ == 'Literatur':
             if k == 'publikationsautor':
@@ -1001,7 +1010,8 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.url = v
                 continue
             if k == 'visited':
-                new_obj.visited = v
+                if v:
+                    new_obj.visited= datetime(v.year(), v. month(), v.day(), v.hour(), v.minute(), int(v.second()))
                 continue
 
         if portal_type_ == 'Partition':
@@ -1104,6 +1114,11 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.slides = [dict(name=item.split(';')[0], link=item.split(';')[1]) for item in v]
                 continue
 
+        if portal_type_ == 'Link':
+            if k == 'remoteUrl':
+               new_obj.remoteUrl = v
+               continue
+
         if portal_type_ == 'ETGeoLocation':
             if k == 'geoBreite':
                 new_obj.lat = v
@@ -1163,16 +1178,22 @@ def create_new_obj(options, folder, old_uid):
             if k == 'VeranstaltungsURL':
                 new_obj.event_url = v
                 continue
+            if k == 'InhalteThemen':
+                adapted = IEventClassification(new_obj)
+                adapted.topic = v
+                continue
+            if k == 'Zertifikat':
+                adapted = IEventClassification(new_obj)
+                adapted.certificate = v
+                continue
             
         if portal_type_ == 'Medienbeitrag':
-
-            setCreationDate(new_obj, obj_data['metadata']['modified'])
 
             if k == 'partner':
                 new_obj.partner = v
                 continue
 
-            if k == 'subTitle ':
+            if k == 'subTitle':
                 new_obj.subtitle = v
                 continue
 
@@ -1226,6 +1247,8 @@ def create_new_obj(options, folder, old_uid):
 #    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
 #    setContentType(new_obj, obj_data['metadata']['content_type'])
+    if portal_type_ == 'Medienbeitrag':
+        setCreationDate(new_obj, obj_data['metadata']['modified'])
     new_obj.reindexObject()
 
 def fixup_geolocation(options):
