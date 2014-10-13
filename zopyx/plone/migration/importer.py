@@ -804,8 +804,6 @@ def create_new_obj(options, folder, old_uid):
         new_obj = candidate
 
     for k,v in obj_data['schemadata'].items():
-        print '-'*80
-        print k
         if k in ('title', 
                 'remote_url',
                 'location',
