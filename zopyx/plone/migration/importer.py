@@ -1302,6 +1302,8 @@ def import_content(options):
         portal_type = CP.get(section, 'portal_type')
 
         new_obj = folder_create(options.plone, path, portal_type)
+        new_obj.description = CP.get(section, 'description')
+        new_obj.language = CP.get(section, 'language')
     
     transaction.savepoint()
 
