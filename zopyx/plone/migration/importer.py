@@ -1121,7 +1121,7 @@ def create_new_obj(options, folder, old_uid):
 
         if portal_type_ == 'ETGeoLocation':
             if k == 'geoBreite':
-                new_obj.lat = v
+                new_obj.lat = unicode(v)
                 continue
             if k == 'geoBundesland':
                 new_obj.state= v
@@ -1130,7 +1130,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.country = v
                 continue
             if k == 'geoLaenge':
-                new_obj.long = v
+                new_obj.long = unicode(v)
                 continue
             if k == 'geoPlz':
                 new_obj.postcode= v
