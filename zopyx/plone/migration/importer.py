@@ -1,6 +1,5 @@
 # -*- coding: utf8 -*-
 
-
 ################################################################
 # Poor men's Plone export
 # (C) 2013, ZOPYX Ltd, D-72074 Tuebingen
@@ -42,6 +41,8 @@ from plone.app.event.dx.behaviors import IEventBasic
 from plone import namedfile
 from plone.app.textfield.value import RichTextValue
 from plone.app.event.dx.behaviors import data_postprocessing
+from plone.app.event.dx.behaviors import IEventAttendees
+from eteaching.policy.behaviors import IEventClassification
 from zope.intid.interfaces import IIntIds
 
 import sys
@@ -323,13 +324,12 @@ def import_members(options):
 
     addMember('dummyadmin', 'dummyadmin', roles=('Member',))
 
-    for section in CP.sections()[:]:
+    for i, section in enumerate(CP.sections()[:]):
 
         username = get(section, 'username')
 
-        if 'RRuuleZz' in username:  # spammer
+        if username in ('I_RRuuleZz',):
             continue
-
 
         if not options.plone.acl_users.getUser(username):
 
@@ -343,7 +343,7 @@ def import_members(options):
                 continue
 
             if options.verbose:
-                log('-> %s' % username)
+                log('-> %d, %s' % (i, username))
 
             # omit group accounts
             if username.startswith('group_'):
@@ -382,10 +382,6 @@ def import_members(options):
         member_props = dict(email=get(section, 'email'),
                             fullname=get(section, 'fullname'))
 
-        print '-'*80
-        import pprint
-        pprint.pprint(vcard)
-
         def to_unicode(s):
             if not isinstance(s, unicode):
                 return unicode(s or '', 'utf8', 'ignore')
@@ -398,7 +394,7 @@ def import_members(options):
         member_props['position'] = USERDATASCHEMA_POSITION_TAGS.get(to_unicode(vcard.get('position', '')))
         member_props['academic'] = USERDATASCHEMA_ACADEMIC_TAGS.get(to_unicode(vcard.get('academic', '')))
         member_props['phone'] = to_unicode(vcard.get('fon1', ''))
-        member_props['cv'] = to_unicode(vcard.get('bemerkung', ''))
+        member_props['description'] = to_unicode(vcard.get('bemerkung', ''))
 
         # datetime
         v = vcard.get('geburtstag')
@@ -406,16 +402,12 @@ def import_members(options):
             member_props['birthday'] = v
 
         # list properties
-        member_props['specialties'] = '\n'.join([t.strip() for t in (vcard.get('fachgebiete') or '').split(',') if t.strip()])
-        member_props['expertise'] =   '\n'.join([t.strip() for t in (vcard.get('expertise') or '').split(',') if t.strip()])
-        member_props['memberships'] = '\n'.join([t.strip() for t in (vcard.get('mitgliedschaften') or '').split(',') if t.strip()])
+        member_props['specialties'] = [t.strip() for t in (vcard.get('fachgebiete') or '').split(',') if t.strip()]
+        member_props['expertise'] =   [t.strip() for t in (vcard.get('expertise') or '').split(',') if t.strip()]
+        member_props['memberships'] = [t.strip() for t in (vcard.get('mitgliedschaften') or '').split(',') if t.strip()]
 
 #        member_props['projects'] =    [t for t in (vcard.get('projekte') or '').split(',') if t]
 #        member_props['db_projects'] = vcard.get('db_projekte', [])
-
-        import pprint
-        pprint.pprint(member_props)
-        
 
         if member is not None:
             try:
@@ -433,7 +425,7 @@ def import_members(options):
             from Products.PlonePAS.utils import scale_image
 
             try:
-                scaled, mimetype = scale_image(open(portrait_filename, 'rb'))
+                scaled, mimetype = scale_image(open(os.path.join(options.input_directory, '..', portrait_filename), 'rb'))
             except:
                 continue
 
@@ -790,9 +782,6 @@ def create_new_obj(options, folder, old_uid):
         if portal_type_ not in allowed_types:
             return
 
-#    if portal_type_ not in ('Veranstaltung', 'Weiterbildung'):
-#        return
-
     if candidate is None or (candidate is not None and candidate.portal_type != portal_type_):
         try:
             constrainsMode = folder.getConstrainTypesMode()
@@ -815,9 +804,7 @@ def create_new_obj(options, folder, old_uid):
         new_obj = candidate
 
     for k,v in obj_data['schemadata'].items():
-
         if k in ('title', 
-                'description', 
                 'remote_url',
                 'location',
                 'event_url',
@@ -827,6 +814,12 @@ def create_new_obj(options, folder, old_uid):
                 'contact_name'):
             setattr(new_obj, k, v)
             continue
+
+        if k == 'description':
+            old_description = getattr(new_obj, 'description', None)
+            if not old_description:
+                new_obj.description = v
+                continue
 
         if k in ('text',):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
@@ -930,7 +923,8 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.description = v
                 continue
             if k == 'projektTeam':
-                new_obj.team = v
+                adapted = IEventAttendees(new_obj)
+                adapted.attendees = list(v) 
                 continue
             if k == 'projektstart' and v:
                 new_obj.start = datetime(v.year(), v. month(), v.day())
@@ -952,10 +946,13 @@ def create_new_obj(options, folder, old_uid):
             if k == 'kategorie':
                 new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
                 continue
+            if k == 'kategorie':
+                new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
+                continue
 
         if portal_type_ == 'PraxisBericht':
             if k == 'anmoderation':
-                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
+                new_obj.subjects = v.split(',')
                 continue
 
             if k == 'PDFBericht':
@@ -988,6 +985,9 @@ def create_new_obj(options, folder, old_uid):
             if k == 'intro_text':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
+            if k == 'teaser':
+                new_obj.description = v
+                continue
 
         if portal_type_ == 'Literatur':
             if k == 'publikationsautor':
@@ -1009,10 +1009,11 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.url = v
                 continue
             if k == 'visited':
-                new_obj.visited = v
+                if v:
+                    new_obj.visited= datetime(v.year(), v. month(), v.day(), v.hour(), v.minute(), int(v.second()))
                 continue
 
-        if portal_type == 'Partition':
+        if portal_type_ == 'Partition':
             if k == 'body':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
@@ -1112,9 +1113,14 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.slides = [dict(name=item.split(';')[0], link=item.split(';')[1]) for item in v]
                 continue
 
+        if portal_type_ == 'Link':
+            if k == 'remoteUrl':
+               new_obj.remoteUrl = v
+               continue
+
         if portal_type_ == 'ETGeoLocation':
             if k == 'geoBreite':
-                new_obj.lat = v
+                new_obj.lat = unicode(v)
                 continue
             if k == 'geoBundesland':
                 new_obj.state= v
@@ -1123,7 +1129,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.country = v
                 continue
             if k == 'geoLaenge':
-                new_obj.long = v
+                new_obj.long = unicode(v)
                 continue
             if k == 'geoPlz':
                 new_obj.postcode= v
@@ -1171,11 +1177,27 @@ def create_new_obj(options, folder, old_uid):
             if k == 'VeranstaltungsURL':
                 new_obj.event_url = v
                 continue
+            if k == 'InhalteThemen':
+                adapted = IEventClassification(new_obj)
+                adapted.topic = v
+                continue
+            if k == 'Zertifikat':
+                adapted = IEventClassification(new_obj)
+                adapted.certificate = v
+                continue
             
         if portal_type_ == 'Medienbeitrag':
 
-            if k in ('subtitle', 'partner'):
-                setattr(new_obj, k, v)
+            if k == 'partner':
+                new_obj.partner = v
+                continue
+
+            if k == 'subTitle':
+                new_obj.subtitle = v
+                continue
+
+            if k == 'additional':
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
 
             if k == 'media':
@@ -1224,39 +1246,32 @@ def create_new_obj(options, folder, old_uid):
 #    setWFPolicy(new_obj, obj_data['metadata']['wf_policy'])
     setExcludeFromNav(new_obj, options)
 #    setContentType(new_obj, obj_data['metadata']['content_type'])
+    if portal_type_ == 'Medienbeitrag':
+        setCreationDate(new_obj, obj_data['metadata']['modified'])
     new_obj.reindexObject()
 
 def fixup_geolocation(options):
+    
+    members_ini = os.path.join(options.input_directory, 'members.ini')
 
-    structure_ini = os.path.join(options.input_directory, 'content.ini')
     CP = ConfigParser()
-    CP.read([structure_ini])
-    get = CP.get
+    CP.read([members_ini])
 
-    sections = CP.sections()
+    for section in CP.sections():
+        vcard = json.loads(CP.get(section, 'vcard'))
+        username = CP.get(section, 'username')
+        institution = vcard.get('institutsLocation')
+#        projekte = vcard['projekte']
 
-    # Now recreate the child objects within
-    log('Fixup geolocation')
-    for i, section in enumerate(sections):
-        portal_type = CP.get(section, 'portal_type')
-        if portal_type in ('Projektdarstellung', 'PraxisBericht'):
-            path_ = CP.get(section, 'path')
-            obj = options.plone.restrictedTraverse(path_, None)
-            if obj is None:
-                continue
-            old_uid = CP.get(section, 'uid')
-            pickle_filename = os.path.join(options.input_directory, 'content', old_uid)
-            obj_data = cPickle.load(file(pickle_filename))
-            schemadata = obj_data['schemadata']
-            institutsLocation = schemadata['institutsLocation']
-            brains = options.plone.portal_catalog(getId=institutsLocation)
-            intid_util = getUtility(IIntIds)
+        if institution:
+            brains = options.plone.portal_catalog(getId=institution)
             if brains:
-                geo_id  = intid_util.getId(brains[0].getObject())
-                obj.location_reference = [geo_id]
-            else:
-                print 'no GEO object found {}'.format(institutsLocation)
-
+                o = brains[0].getObject()
+                adapted = IEventAttendees(o)
+                attendees = list(adapted.attendees or ())
+                if not username in attendees:
+                    attendees.append(username)
+                adapted.attendees = attendees
 
     transaction.savepoint()
 
@@ -1372,15 +1387,15 @@ def import_plone(app, options):
     options.plone = plone
     if options.import_members:
         import_members(options)
+    
     options.plone.restrictedTraverse('@@import-mediaitems')(u'file:///home/share/media')
     import_groups(options)
-#    import_placeful_workflow(options)
-#    import_content(options)
-##    import_blog_entries(options)
-#    fixup_geolocation(options)
-#    fixup_uids(options)
-
-#    options.plone.restrictedTraverse('@@rebuild-backreferences')()
+    import_placeful_workflow(options)
+    import_content(options)
+#    import_blog_entries(options)
+    fixup_geolocation(options)
+    fixup_uids(options)
+    options.plone.restrictedTraverse('@@rebuild-backreferences')()
 
     return plone.absolute_url(1)
 
