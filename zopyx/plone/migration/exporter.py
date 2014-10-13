@@ -123,8 +123,6 @@ def export_members(options):
         passwords = None
 
     for username in acl_users.getUserNames():
-        if username.lower() == 'phols':
-            import pdb; pdb.set_trace() 
         user = acl_users.getUserById(username)
         member = pm.getMemberById(username)
         membership = options.plone.portal_membership
@@ -210,12 +208,14 @@ def export_structure(options):
 
         rel_path = _getRelativePath(context, options.plone)
         if rel_path in ['bawue']:
-            continue
+            return
 
         print >>fp, '[%d]' % counter.next()
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
         print >>fp, 'path = %s' % rel_path
+        print >>fp, 'description = %s' % context.description
+        print >>fp, 'language = %s' % context.language
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
         print >>fp, 'default_page = %s' % _getDefaultPage(context)
         print >>fp, 'children_uids = %s' % ','.join(children_uids)
@@ -372,6 +372,11 @@ def export_content(options):
             if brain.getId in ('.personal', 'buddylist', 'linklists', 'messages', 'myevents', 'user'):
                 continue
 
+    
+        if brain.getId == 'event.2014-09-05.7134395284':
+            import pdb; pdb.set_trace() 
+
+
         obj_data = dict(schemadata=dict(), metadata=dict())        
         if schema:
             ext_filename = None
@@ -416,6 +421,7 @@ def export_content(options):
                 # Dexterity Link type uses 'remoteUrl'
                 obj_data['schemadata']['remoteUrl'] = obj.remote_url
             elif obj.portal_type in ('Event',):
+                
                 obj_data['schemadata']['start'] = obj.start_date
                 obj_data['schemadata']['end'] = obj.end_date
                 obj_data['schemadata']['contact_email'] = obj.contact_email
