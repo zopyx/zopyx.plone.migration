@@ -821,6 +821,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.description = v
                 continue
 
+
         if k in ('text',):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
@@ -1100,18 +1101,28 @@ def create_new_obj(options, folder, old_uid):
             if k == 'kurzbeschreibung_vergangen':
                 new_obj.text_past = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
-            if k == 'kurzbeschreibung_zukunft':
-                new_obj.description = v
-                continue
             if k == 'link_event':
                 new_obj.link_event = v
                 continue
             if k == 'code_schnipsel':
                 new_obj.code_snippets = v
                 continue
+            if k == 'link_paper':
+                new_obj.paper = v
+                continue
             if k == 'folien':
                 new_obj.slides = [dict(name=item.split(';')[0], link=item.split(';')[1]) for item in v]
                 continue
+            if k == 'protokoll':
+                new_obj.chat_log = k
+                continue
+            if k == 'link_protokoll':
+                new_obj.chat_log = k
+                continue
+            if k == 'link_paper':
+                new_obj.paper = k
+
+
 
         if portal_type_ == 'Link':
             if k == 'remoteUrl':
@@ -1232,6 +1243,9 @@ def create_new_obj(options, folder, old_uid):
             ev.timezone = tz
             data_postprocessing(new_obj, None)
 
+    if portal_type_ == 'ETEvent':
+        new_obj.description = obj['schemadata']['kurzbeschreibung_zukunft']
+
     if portal_type_ == 'Weiterbildung':
         data_postprocessing(new_obj, None)
 
@@ -1338,6 +1352,25 @@ def log(s):
 def fixup_uids(options):
     for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item', 'ENLIssue')}):
         fix_resolve_uids(brain.getObject(), options)
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.onlineevent',)}):
+        o = brain.getObject()
+
+        paper = o.link_paper
+        if paper:
+            id_ = paper.split('/')[-1]
+            result = options.plone.portal_catalog({'getId': id_})
+            if result:
+                o.link_paper = result[0].getObject().UID()
+
+        chat = o.chat_log
+        if chat:
+            id_ = chat.split('/')[-1]
+            result = options.plone.portal_catalog({'getId': id_})
+            if result:
+                o.chat_log = result[0].getObject().UID()
+
+
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
     app = makerequest(app)
