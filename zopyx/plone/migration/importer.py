@@ -1244,7 +1244,7 @@ def create_new_obj(options, folder, old_uid):
             data_postprocessing(new_obj, None)
 
     if portal_type_ == 'ETEvent':
-        new_obj.description = obj['schemadata']['kurzbeschreibung_zukunft']
+        new_obj.description = obj_data['schemadata']['kurzbeschreibung_zukunft']
 
     if portal_type_ == 'Weiterbildung':
         data_postprocessing(new_obj, None)
