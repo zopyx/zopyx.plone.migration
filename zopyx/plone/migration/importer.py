@@ -1119,8 +1119,6 @@ def create_new_obj(options, folder, old_uid):
             if k == 'link_protokoll':
                 new_obj.chat_log = k
                 continue
-            if k == 'link_paper':
-                new_obj.paper = k
 
 
 
@@ -1356,12 +1354,12 @@ def fixup_uids(options):
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.onlineevent',)}):
         o = brain.getObject()
 
-        paper = o.link_paper
+        paper = o.paper
         if paper:
             id_ = paper.split('/')[-1]
             result = options.plone.portal_catalog({'getId': id_})
             if result:
-                o.link_paper = result[0].getObject().UID()
+                o.paper = result[0].getObject().UID()
 
         chat = o.chat_log
         if chat:
