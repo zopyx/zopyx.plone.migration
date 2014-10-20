@@ -982,6 +982,9 @@ def create_new_obj(options, folder, old_uid):
             if k == 'url':
                 new_obj.url = v
                 continue
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
 
         if portal_type_ == 'ThemenSpecial':
             if k == 'intro_text':
@@ -1351,6 +1354,23 @@ def log(s):
 def fixup_uids(options):
     for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item', 'ENLIssue')}):
         fix_resolve_uids(brain.getObject(), options)
+
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.location',)}):
+
+
+        location = brain.getObject()
+        location_ref = location.institutsLocation
+        if not location_ref:
+            continue
+        import pdb; pdb.set_trace() 
+        result = options.plone.portal_catalog({'getId': location_ref})
+        if result:
+            ref_location = result[0].getObject()
+            ref_location.elearn_url = location.elearn_url
+            ref_location.news_feed_url = location.news_feed_url 
+            ref_location.selbstdarstellung = location.selbstdarstellung
+            ref_location.url = location.url 
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.onlineevent',)}):
         o = brain.getObject()
