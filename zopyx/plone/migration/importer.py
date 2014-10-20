@@ -1363,14 +1363,14 @@ def fixup_uids(options):
         location_ref = location.institutsLocation
         if not location_ref:
             continue
-        import pdb; pdb.set_trace() 
         result = options.plone.portal_catalog({'getId': location_ref})
         if result:
             ref_location = result[0].getObject()
-            ref_location.elearn_url = location.elearn_url
+            ref_location.elearning_url = location.elearning_url
             ref_location.news_feed_url = location.news_feed_url 
-            ref_location.selbstdarstellung = location.selbstdarstellung
+            ref_location.text = location.text
             ref_location.url = location.url 
+
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.onlineevent',)}):
         o = brain.getObject()
