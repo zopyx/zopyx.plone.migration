@@ -481,7 +481,7 @@ def target_pt(default_portal_type, id_, dirname):
         return 'eteaching.policy.testreport'
 
     if default_portal_type in ('Partition',):
-        return 'Partition'
+        return 'eteaching.policy.partition'
 
     if default_portal_type=='ThemenSpecial':
         return 'eteaching.policy.special'
@@ -774,6 +774,7 @@ def create_new_obj(options, folder, old_uid):
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
+
     candidate = myRestrictedTraverse(options.plone, path_)
 
     if options.portal_types:
