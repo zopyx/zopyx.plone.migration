@@ -1358,9 +1358,21 @@ def log(s):
 
 
 def fixup_uids(options):
+
     for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item', 'ENLIssue')}):
         fix_resolve_uids(brain.getObject(), options)
 
+    for brain in options.plone.portal_catalog():
+        ob = brain.getObject()
+        try:
+            location_ref = ob.institutsLocation
+        except AttributeError:
+            continue
+
+        result = options.plone.portal_catalog({'getId': location_ref})
+        if result:
+            ref_location = result[0].getObject()
+            obj.location_reference = ref_location.UID()        
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.location',)}):
 
