@@ -951,6 +951,9 @@ def create_new_obj(options, folder, old_uid):
             if k == 'kategorie':
                 new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
                 continue
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
 
         if portal_type_ == 'PraxisBericht':
             if k == 'anmoderation':
@@ -968,6 +971,9 @@ def create_new_obj(options, folder, old_uid):
                 intid_util = getUtility(IIntIds)
                 bericht_intid = intid_util.getId(bericht)
                 new_obj.media_documents = [bericht_intid]
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
 
         if portal_type_ == 'Hochschulinfo':
             if k == 'elearn_url':
