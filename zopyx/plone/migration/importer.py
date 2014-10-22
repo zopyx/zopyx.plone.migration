@@ -1165,6 +1165,9 @@ def create_new_obj(options, folder, old_uid):
 
         if portal_type_ == 'Weiterbildung':
 
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
             if k == 'Kurzbeschreibung':
                 new_obj.description = v
                 continue
