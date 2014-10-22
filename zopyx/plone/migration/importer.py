@@ -1030,6 +1030,9 @@ def create_new_obj(options, folder, old_uid):
                 continue
 
         if portal_type_ == 'Referenzbeispiel':
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
             if k == 'langtitel':
                 new_obj.description = v
                 continue
