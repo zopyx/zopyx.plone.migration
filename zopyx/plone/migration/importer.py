@@ -1378,7 +1378,9 @@ def fixup_uids(options):
         result = options.plone.portal_catalog({'getId': location_ref})
         if result:
             ref_location = result[0].getObject()
-            ob.location_reference = ref_location.UID()        
+            intid_util = getUtility(IIntIds)
+            ref_intid = intid_util.getId(ref_location)
+            ob.location_reference = [ref_intid]
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.location',)}):
 
