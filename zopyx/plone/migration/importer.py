@@ -262,6 +262,12 @@ USERDATASCHEMA_ACADEMIC_TAGS = {
         'dr': 'doctor',
         }
 
+MAP_WEITERBILDUNG_TOPIC = {
+    'E-Teaching Grundlagen': 'eteaching_basics',
+    'Softwareschulung': 'software_training', 
+    'Mediendidaktik': 'media_didactics',
+    'Organisation': 'organisation',
+}
 
 def import_placeful_workflow(options):
 
@@ -1204,7 +1210,7 @@ def create_new_obj(options, folder, old_uid):
                 continue
             if k == 'InhalteThemen':
                 adapted = IEventClassification(new_obj)
-                adapted.topic = v
+                adapted.topic = MAP_WEITERBILDUNG_TOPIC.get(v, v)
                 continue
             if k == 'Zertifikat':
                 adapted = IEventClassification(new_obj)
