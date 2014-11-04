@@ -919,6 +919,12 @@ def create_new_obj(options, folder, old_uid):
                 setattr(new_obj, _map[k], RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
                 continue
 
+            if k == 'htmldatei':
+                new_obj.screenshot_description= v
+                continue
+            if k == 'einsatzgebiet':
+                new_obj.description = v
+                continue
             if k == 'plattform':
                 new_obj.supported_os = [MAP_TEST_REPORT_SUPPORTED_OS_TAGS.get(k)  for k in v]
                 continue
@@ -960,10 +966,13 @@ def create_new_obj(options, folder, old_uid):
             if k == 'institutsLocation':
                 new_obj.institutsLocation = v
                 continue
+            if k == 'tags':
+                new_obj.subjects = [x.strip() for x in v.split(',') if x.strip()]
+                continue
 
         if portal_type_ == 'PraxisBericht':
             if k == 'anmoderation':
-                new_obj.subjects = v.split(',')
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
 
             if k == 'PDFBericht':
@@ -988,7 +997,7 @@ def create_new_obj(options, folder, old_uid):
             if k == 'news_feed_url':
                 new_obj.news_feed_url = v
                 continue
-            if k == 'selbstdarstellung':
+            if k == 'selbsdarstellung':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
             if k == 'url':
@@ -1412,15 +1421,26 @@ def fixup_uids(options):
             id_ = paper.split('/')[-1]
             result = options.plone.portal_catalog({'getId': id_})
             if result:
-                o.paper = result[0].getObject().UID()
+                intid_util = getUtility(IIntIds)
+                o.paper = intid_util.getId(result[0].getObject())
 
         chat = o.chat_log
         if chat:
             id_ = chat.split('/')[-1]
             result = options.plone.portal_catalog({'getId': id_})
             if result:
-                o.chat_log = result[0].getObject().UID()
+                intid_util = getUtility(IIntIds)
+                o.chat_log = intid_util.getId(result[0].getObject())
 
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.testreport',)}):
+        o = brain.getObject()
+        href = o.screenshot_description
+        href = href.lstrip('/')
+        if href:
+            ref = options.plone.restrictedTraverse(href, None)
+            if ref is not None:
+                ref.screenshot_description = intid_util.getId(ref.getObject())
 
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
