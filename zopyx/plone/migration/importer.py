@@ -1442,7 +1442,7 @@ def fixup_uids(options):
         if href:
             ref = options.plone.restrictedTraverse(href, None)
             if ref is not None:
-                ref.screenshot_description = intid_util.getId(ref.getObject())
+                ref.screenshot_description = intid_util.getId(ref)
 
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
