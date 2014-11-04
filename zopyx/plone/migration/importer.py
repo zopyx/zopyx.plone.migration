@@ -815,7 +815,6 @@ def create_new_obj(options, folder, old_uid):
                 'remote_url',
                 'location',
                 'event_url',
-                'subject',
                 'contact_email', 
                 'contact_phone',
                 'contact_name'):
@@ -828,6 +827,9 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.description = v
                 continue
 
+        if k == 'subject':
+            new_obj.subject = [unicode(s, 'utf8', 'ignore') for s in v]
+            continue
 
         if k in ('text',):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
@@ -967,7 +969,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.institutsLocation = v
                 continue
             if k == 'tags':
-                new_obj.subjects = [x.strip() for x in v.split(',') if x.strip()]
+                new_obj.subject = [x.strip() for x in v.split(',') if x.strip()]
                 continue
 
         if portal_type_ == 'PraxisBericht':
