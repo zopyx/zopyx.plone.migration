@@ -549,6 +549,7 @@ def folder_create(root, dirname, portal_type):
         current.invokeFactory(target_portal_type, id=components[-1])
         if constrainsMode is not None:
             current.setConstrainTypesMode(constrainsMode)
+
     return current[components[-1]]
 
 def myRestrictedTraverse(obj, path):
@@ -1444,6 +1445,11 @@ def fixup_uids(options):
             if ref is not None:
                 ref.screenshot_description = intid_util.getId(ref)
 
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.podcastchannel',)}):
+        o = brain.getObject()
+        o.language = u'de'
+        o.reindexObject()
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
     app = makerequest(app)
