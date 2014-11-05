@@ -262,6 +262,12 @@ USERDATASCHEMA_ACADEMIC_TAGS = {
         'dr': 'doctor',
         }
 
+MAP_WEITERBILDUNG_TOPIC = {
+    'E-Teaching Grundlagen': 'eteaching_basics',
+    'Softwareschulung': 'software_training', 
+    'Mediendidaktik': 'media_didactics',
+    'Organisation': 'organisation',
+}
 
 def import_placeful_workflow(options):
 
@@ -481,7 +487,7 @@ def target_pt(default_portal_type, id_, dirname):
         return 'eteaching.policy.testreport'
 
     if default_portal_type in ('Partition',):
-        return 'Partition'
+        return 'eteaching.policy.partition'
 
     if default_portal_type=='ThemenSpecial':
         return 'eteaching.policy.special'
@@ -774,6 +780,7 @@ def create_new_obj(options, folder, old_uid):
     id_ = obj_data['metadata']['id']
     path_ = obj_data['metadata']['path']
     portal_type_ = obj_data['metadata']['portal_type']
+
     candidate = myRestrictedTraverse(options.plone, path_)
 
     if options.portal_types:
@@ -808,7 +815,6 @@ def create_new_obj(options, folder, old_uid):
                 'remote_url',
                 'location',
                 'event_url',
-                'subject',
                 'contact_email', 
                 'contact_phone',
                 'contact_name'):
@@ -820,6 +826,10 @@ def create_new_obj(options, folder, old_uid):
             if not old_description:
                 new_obj.description = v
                 continue
+
+        if k == 'subject':
+            new_obj.subject = [unicode(s, 'utf8', 'ignore') for s in v]
+            continue
 
         if k in ('text',):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
@@ -911,6 +921,12 @@ def create_new_obj(options, folder, old_uid):
                 setattr(new_obj, _map[k], RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
                 continue
 
+            if k == 'htmldatei':
+                new_obj.screenshot_description= v
+                continue
+            if k == 'einsatzgebiet':
+                new_obj.description = v
+                continue
             if k == 'plattform':
                 new_obj.supported_os = [MAP_TEST_REPORT_SUPPORTED_OS_TAGS.get(k)  for k in v]
                 continue
@@ -949,10 +965,16 @@ def create_new_obj(options, folder, old_uid):
             if k == 'kategorie':
                 new_obj.category = [MAP_PROJECT_GLOBAL_CATEGORY_TAGS.get(v)]
                 continue
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
+            if k == 'tags':
+                new_obj.subject = [x.strip() for x in v.split(',') if x.strip()]
+                continue
 
         if portal_type_ == 'PraxisBericht':
             if k == 'anmoderation':
-                new_obj.subjects = v.split(',')
+                new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
 
             if k == 'PDFBericht':
@@ -966,6 +988,9 @@ def create_new_obj(options, folder, old_uid):
                 intid_util = getUtility(IIntIds)
                 bericht_intid = intid_util.getId(bericht)
                 new_obj.media_documents = [bericht_intid]
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
 
         if portal_type_ == 'Hochschulinfo':
             if k == 'elearn_url':
@@ -974,11 +999,14 @@ def create_new_obj(options, folder, old_uid):
             if k == 'news_feed_url':
                 new_obj.news_feed_url = v
                 continue
-            if k == 'selbstdarstellung':
+            if k == 'selbsdarstellung':
                 new_obj.text = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
             if k == 'url':
                 new_obj.url = v
+                continue
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
                 continue
 
         if portal_type_ == 'ThemenSpecial':
@@ -1019,6 +1047,9 @@ def create_new_obj(options, folder, old_uid):
                 continue
 
         if portal_type_ == 'Referenzbeispiel':
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
             if k == 'langtitel':
                 new_obj.description = v
                 continue
@@ -1100,18 +1131,26 @@ def create_new_obj(options, folder, old_uid):
             if k == 'kurzbeschreibung_vergangen':
                 new_obj.text_past = RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html')
                 continue
-            if k == 'kurzbeschreibung_zukunft':
-                new_obj.description = v
-                continue
             if k == 'link_event':
                 new_obj.link_event = v
                 continue
             if k == 'code_schnipsel':
                 new_obj.code_snippets = v
                 continue
+            if k == 'link_paper':
+                new_obj.paper = v
+                continue
             if k == 'folien':
                 new_obj.slides = [dict(name=item.split(';')[0], link=item.split(';')[1]) for item in v]
                 continue
+            if k == 'protokoll':
+                new_obj.chat_log = k
+                continue
+            if k == 'link_protokoll':
+                new_obj.chat_log = k
+                continue
+
+
 
         if portal_type_ == 'Link':
             if k == 'remoteUrl':
@@ -1146,6 +1185,9 @@ def create_new_obj(options, folder, old_uid):
 
         if portal_type_ == 'Weiterbildung':
 
+            if k == 'institutsLocation':
+                new_obj.institutsLocation = v
+                continue
             if k == 'Kurzbeschreibung':
                 new_obj.description = v
                 continue
@@ -1179,7 +1221,7 @@ def create_new_obj(options, folder, old_uid):
                 continue
             if k == 'InhalteThemen':
                 adapted = IEventClassification(new_obj)
-                adapted.topic = v
+                adapted.topic = MAP_WEITERBILDUNG_TOPIC.get(v, v)
                 continue
             if k == 'Zertifikat':
                 adapted = IEventClassification(new_obj)
@@ -1231,6 +1273,9 @@ def create_new_obj(options, folder, old_uid):
                 ev.end = end
             ev.timezone = tz
             data_postprocessing(new_obj, None)
+
+    if portal_type_ == 'ETEvent':
+        new_obj.description = obj_data['schemadata']['kurzbeschreibung_zukunft']
 
     if portal_type_ == 'Weiterbildung':
         data_postprocessing(new_obj, None)
@@ -1302,6 +1347,8 @@ def import_content(options):
         portal_type = CP.get(section, 'portal_type')
 
         new_obj = folder_create(options.plone, path, portal_type)
+        new_obj.description = CP.get(section, 'description')
+        new_obj.language = CP.get(section, 'language')
     
     transaction.savepoint()
 
@@ -1334,8 +1381,69 @@ def log(s):
 
 
 def fixup_uids(options):
+
     for brain in options.plone.portal_catalog({'portal_type' : ('Document', 'Page', 'News Item', 'ENLIssue')}):
         fix_resolve_uids(brain.getObject(), options)
+
+    for brain in options.plone.portal_catalog():
+        ob = brain.getObject()
+        try:
+            location_ref = ob.institutsLocation
+        except AttributeError:
+            continue
+
+        result = options.plone.portal_catalog({'getId': location_ref})
+        if result:
+            ref_location = result[0].getObject()
+            intid_util = getUtility(IIntIds)
+            ref_intid = intid_util.getId(ref_location)
+            ob.location_reference = [ref_intid]
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.location',)}):
+
+
+        location = brain.getObject()
+        location_ref = location.institutsLocation
+        if not location_ref:
+            continue
+        result = options.plone.portal_catalog({'getId': location_ref})
+        if result:
+            ref_location = result[0].getObject()
+            ref_location.elearning_url = location.elearning_url
+            ref_location.news_feed_url = location.news_feed_url 
+            ref_location.text = location.text
+            ref_location.url = location.url 
+
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.onlineevent',)}):
+        o = brain.getObject()
+
+        paper = o.paper
+        if paper:
+            id_ = paper.split('/')[-1]
+            result = options.plone.portal_catalog({'getId': id_})
+            if result:
+                intid_util = getUtility(IIntIds)
+                o.paper = intid_util.getId(result[0].getObject())
+
+        chat = o.chat_log
+        if chat:
+            id_ = chat.split('/')[-1]
+            result = options.plone.portal_catalog({'getId': id_})
+            if result:
+                intid_util = getUtility(IIntIds)
+                o.chat_log = intid_util.getId(result[0].getObject())
+
+
+    for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.testreport',)}):
+        o = brain.getObject()
+        href = o.screenshot_description
+        href = href.lstrip('/')
+        if href:
+            ref = options.plone.restrictedTraverse(href, None)
+            if ref is not None:
+                ref.screenshot_description = intid_util.getId(ref)
+
 
 def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
     app = makerequest(app)
