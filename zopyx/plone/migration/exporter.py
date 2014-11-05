@@ -214,7 +214,14 @@ def export_structure(options):
         print >>fp, 'id = %s' % context.getId()
         print >>fp, 'uid = %s' % context_uid
         print >>fp, 'path = %s' % rel_path
-        print >>fp, 'description = %s' % context.description
+        if context.portal_type == 'Plone Site':
+            print >>fp, 'description = '
+        else:
+            description = context.description
+            description = description.replace('\r\n', '')
+            if '<' in description:
+                description = ''
+            print >>fp, 'description = %s' % description
         print >>fp, 'language = %s' % context.language
         print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)
         print >>fp, 'default_page = %s' % _getDefaultPage(context)
@@ -371,10 +378,6 @@ def export_content(options):
                 continue
             if brain.getId in ('.personal', 'buddylist', 'linklists', 'messages', 'myevents', 'user'):
                 continue
-
-    
-        if brain.getId == 'event.2014-09-05.7134395284':
-            import pdb; pdb.set_trace() 
 
 
         obj_data = dict(schemadata=dict(), metadata=dict())        
