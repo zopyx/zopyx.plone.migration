@@ -836,6 +836,10 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
+
+        if k == 'hslogo' and new_obj.getId() == 'geo.2007-08-06.9716965698':
+            import pdb; pdb.set_trace() 
+
         if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo', 'themengrafik', 'event_foto', 'event_foto_sw'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
@@ -1145,10 +1149,13 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.slides = [dict(name=item.split(';')[0], link=item.split(';')[1]) for item in v]
                 continue
             if k == 'protokoll':
-                new_obj.chat_log = k
+                new_obj.chat_log = v
                 continue
             if k == 'link_protokoll':
-                new_obj.chat_log = k
+                new_obj.chat_log = v
+                continue
+            if k == 'link_aufzeichnung':
+                new_obj.recording = v
                 continue
 
 
@@ -1435,6 +1442,14 @@ def fixup_uids(options):
                 intid_util = getUtility(IIntIds)
                 o.chat_log = intid_util.getId(result[0].getObject())
 
+        recording = o.recording
+        if recording:
+            id_ = recording.split('/')[-1]
+            result = options.plone.portal_catalog({'getId': id_})
+            if result:
+                intid_util = getUtility(IIntIds)
+                o.recording = intid_util.getId(result[0].getObject())
+
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.testreport',)}):
         o = brain.getObject()
@@ -1443,7 +1458,7 @@ def fixup_uids(options):
         if href:
             ref = options.plone.restrictedTraverse(href, None)
             if ref is not None:
-                ref.screenshot_description = intid_util.getId(ref)
+                o.screenshot_description = intid_util.getId(ref)
 
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.podcastchannel',)}):
