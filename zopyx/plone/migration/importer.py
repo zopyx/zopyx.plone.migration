@@ -970,7 +970,7 @@ def create_new_obj(options, folder, old_uid):
                 new_obj.institutsLocation = v
                 continue
             if k == 'tags':
-                new_obj.subject = [x.strip() for x in v.split(',') if x.strip()]
+                new_obj.subject = [unicode(x.strip(), 'utf8') for x in v.split(',') if x.strip()]
                 continue
 
         if portal_type_ == 'PraxisBericht':
