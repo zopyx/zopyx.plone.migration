@@ -836,10 +836,6 @@ def create_new_obj(options, folder, old_uid):
             setattr(new_obj, k, RichTextValue(unicode(v, 'utf-8'), 'text/html', 'text/html'))
             continue
 
-
-        if k == 'hslogo' and new_obj.getId() == 'geo.2007-08-06.9716965698':
-            import pdb; pdb.set_trace() 
-
         if k in ('image', 'file', 'projekt_foto', 'projekt_banner', 'hslogo', 'screenshot', 'logo', 'themengrafik', 'event_foto', 'event_foto_sw'):
             filename = '/'.join(v.split('/')[-3:])
             filename = os.path.join(options.input_directory, '..', filename)
@@ -1408,8 +1404,6 @@ def fixup_uids(options):
             ob.location_reference = [ref_intid]
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.location',)}):
-
-
         location = brain.getObject()
         location_ref = location.institutsLocation
         if not location_ref:
@@ -1421,7 +1415,7 @@ def fixup_uids(options):
             ref_location.news_feed_url = location.news_feed_url 
             ref_location.text = location.text
             ref_location.url = location.url 
-
+            ref_location.image = location.image
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.onlineevent',)}):
         o = brain.getObject()
