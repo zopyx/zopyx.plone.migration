@@ -1154,7 +1154,7 @@ def create_new_obj(options, folder, old_uid):
             if k == 'link_protokoll':
                 new_obj.chat_log = v
                 continue
-            if k == 'link_aufzeichnung':
+            if k == 'video':
                 new_obj.recording = v
                 continue
 
@@ -1432,7 +1432,8 @@ def fixup_uids(options):
             result = options.plone.portal_catalog({'getId': id_})
             if result:
                 intid_util = getUtility(IIntIds)
-                o.paper = intid_util.getId(result[0].getObject())
+                if result[0].getObject().portal_type == 'Document':
+                    o.paper = intid_util.getId(result[0].getObject())
 
         chat = o.chat_log
         if chat:
@@ -1440,7 +1441,8 @@ def fixup_uids(options):
             result = options.plone.portal_catalog({'getId': id_})
             if result:
                 intid_util = getUtility(IIntIds)
-                o.chat_log = intid_util.getId(result[0].getObject())
+                if result[0].getObject().portal_type == 'Document':
+                    o.chat_log = intid_util.getId(result[0].getObject())
 
         recording = o.recording
         if recording:
