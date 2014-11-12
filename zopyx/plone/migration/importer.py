@@ -1447,6 +1447,8 @@ def fixup_uids(options):
                     o.chat_log = None
             else:
                 o.chat_log = None
+        else:
+            o.chat_log = None
 
         recording = o.recording
         if recording:
