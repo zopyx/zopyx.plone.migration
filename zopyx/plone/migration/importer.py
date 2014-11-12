@@ -1432,6 +1432,8 @@ def fixup_uids(options):
                     o.paper = None
             else:
                 o.paper = None
+        else:
+            o.paper = None
 
         chat = o.chat_log
         if chat:
@@ -1458,6 +1460,8 @@ def fixup_uids(options):
                     o.recording = None
             else:
                 o.recording = None
+        else:
+            o.recording = None
 
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.testreport',)}):
