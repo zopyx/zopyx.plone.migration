@@ -1456,7 +1456,7 @@ def fixup_uids(options):
             result = options.plone.portal_catalog({'getId': id_})
             if result:
                 intid_util = getUtility(IIntIds)
-                if result[0].getObject().portal_type == 'eteaching.policy.mediadocument':
+                if result[0].getObject().portal_type == 'eteaching.policy.mediaitem':
                     o.recording = intid_util.getId(result[0].getObject())
                 else:
                     o.recording = None
