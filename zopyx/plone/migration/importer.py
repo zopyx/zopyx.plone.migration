@@ -1428,6 +1428,10 @@ def fixup_uids(options):
                 intid_util = getUtility(IIntIds)
                 if result[0].getObject().portal_type == 'Document':
                     o.paper = intid_util.getId(result[0].getObject())
+                else:
+                    o.paper = None
+            else:
+                o.paper = None
 
         chat = o.chat_log
         if chat:
@@ -1437,6 +1441,10 @@ def fixup_uids(options):
                 intid_util = getUtility(IIntIds)
                 if result[0].getObject().portal_type == 'Document':
                     o.chat_log = intid_util.getId(result[0].getObject())
+                else:
+                    o.chat_log = None
+            else:
+                o.chat_log = None
 
         recording = o.recording
         if recording:
@@ -1444,7 +1452,12 @@ def fixup_uids(options):
             result = options.plone.portal_catalog({'getId': id_})
             if result:
                 intid_util = getUtility(IIntIds)
-                o.recording = intid_util.getId(result[0].getObject())
+                if result[0].getObject().portal_type == 'eteaching.policy.mediadocument':
+                    o.recording = intid_util.getId(result[0].getObject())
+                else:
+                    o.recording = None
+            else:
+                o.recording = None
 
 
     for brain in options.plone.portal_catalog({'portal_type' : ('eteaching.policy.testreport',)}):
