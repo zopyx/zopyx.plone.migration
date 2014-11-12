@@ -1450,7 +1450,7 @@ def fixup_uids(options):
 
         recording = o.recording
         if recording:
-            id_ = recording.split('/')[-1]
+            id_ = recording.split('/')[-1].replace('-', '_')
             result = options.plone.portal_catalog({'getId': id_})
             if result:
                 intid_util = getUtility(IIntIds)
