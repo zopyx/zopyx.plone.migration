@@ -16,13 +16,15 @@ Installation
 Add the following to your buildout::
 
     [buildout]
-    parts = 
+    parts =
         exportimport
-
 
     [exportimport]
     recipe = zc.recipe.egg:scripts
     eggs = zopyx.plone.migration
+
+    [versions]
+    lxml = 3.3.6  # newest 3.4.0 drops python < 2.6 support
 
 
 Export of a Plone site
@@ -49,7 +51,26 @@ The exporter will export the following items from a Plone site:
 
 Usage::
 
-    bin/instance run bin/exporter.py --path /path/to/<plone_id> --output <directory>
+    bin/instance run bin/exporter --path /path/to/<plone_id> --output <directory>
+
+Options:
+
+    -u NAME, --user NAME      Username to use to access the database. Defaults
+                              to ``admin``.
+    -p PATH, --path PATH      Path to the Plone site. E.g. ``-p /Plone``.
+    -o PATH, --output OUTPUT  Path to the export directory. E.g. ``-o export``.
+    -v, --verbose             Verbose output.
+    -i LIST, --ignore LIST    Comma seperated list of portal type names to
+                              ignore. Enclose names which include a space
+                              within quotes.
+                              E.g. ``-i 'Address Book',FormFolder``.
+    -b, --batch_size          Batch size. Defaults to ``0``. If bigger than 0,
+                              the content export is batched.
+    -s, --batch_start         Batch start. Defaults to ``0``. If bigger than 0,
+                              it's assumed, that an initial export was already
+                              done and only the content will be exported,
+                              starting at batch_start.
+
 
 The exporter will create a self-contained directory with the exported data
 unter ``<directory>/<plone_id>``. The directory contains two INI files
@@ -65,7 +86,7 @@ serialized using Python's Pickle mechanism in order to avoid serialization
 issues and to preserve the data as is.
 
 In addition the exporter cares out the export of members and groups
-(members.ini, groups.ini)
+(members.ini, groups.ini).
 
 Note that the ``bin/exporter`` script is **not directly** callable.
 It must always be run using the ``bin/instance run somescript.py`` mechanism
