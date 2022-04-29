@@ -72,111 +72,109 @@ def log(s):
 def export_plonegazette(options, newsletter):
     ini_fn = os.path.join(
         options.export_directory,
-        '%s_plonegazette_subscribers' % _getUID(newsletter)
+        f'{_getUID(newsletter)}_plonegazette_subscribers',
     )
-    log('Exporting subscribers for %s to %s'
-        % (newsletter.absolute_url(), ini_fn))
-    fp = open(ini_fn, 'w')
-    if 'subscribers' in newsletter.objectIds():
-        sfolder = newsletter.subscribers
-    elif 'subscribers' in newsletter.aq_parent.objectIds():
-        sfolder = newsletter.aq_parent.subscribers
-    else:
-        sfolder = newsletter.aq_parent
 
-    for i, subs in enumerate([
-            sub for sub in sfolder.contentValues()
-            if sub.portal_type == 'Subscriber'
-    ]):
-        if not subs.active:
-            continue
-        print >>fp, '[%d]' % i
-        print >>fp, 'id = %s' % subs.getId()
-        print >>fp, 'fullname = %s' % subs.Title()
-        print >>fp, 'email = %s' % subs.Title()
-        print >>fp, 'format = %s' % subs.format.lower()
-    fp.close()
+    log(f'Exporting subscribers for {newsletter.absolute_url()} to {ini_fn}')
+    with open(ini_fn, 'w') as fp:
+        if 'subscribers' in newsletter.objectIds():
+            sfolder = newsletter.subscribers
+        elif 'subscribers' in newsletter.aq_parent.objectIds():
+            sfolder = newsletter.aq_parent.subscribers
+        else:
+            sfolder = newsletter.aq_parent
+
+        for i, subs in enumerate(sub for sub in sfolder.contentValues()
+                    if sub.portal_type == 'Subscriber'):
+            if not subs.active:
+                continue
+            print >>fp, '[%d]' % i
+            (print >>fp, f'id = {subs.getId()}')
+            (print >>fp, f'fullname = {subs.Title()}')
+            (print >>fp, f'email = {subs.Title()}')
+            (print >>fp, f'format = {subs.format.lower()}')
     log('Exported %d subscribers' % i)
 
 
 def export_groups(options):
 
     log('Exporting groups')
-    fp = open(os.path.join(options.export_directory, 'groups.ini'), 'w')
-    acl_users = options.plone.acl_users
-    if hasattr(acl_users, 'source_groups'):
-        # yeah, its pas
-        groups = acl_users.source_groups.getGroups()
-    else:
-        # omg, it could be gruf
-        groups = acl_users.Groups.acl_users.getUsers()
-    num_groups = len(groups)
-    for i, group in enumerate(groups):
-        if options.verbose:
-            log('--> (%d/%d) %s' % ((i + 1), num_groups, group.getId()))
-        print >>fp, '[%d]' % i
-        print >>fp, 'name = %s' % group.getId()
-        if not hasattr(group, 'getMemberIds'):
-            members = [_.getId() for _ in
-                       options.plone.getUsersInGroup(group.getId())]
+    with open(os.path.join(options.export_directory, 'groups.ini'), 'w') as fp:
+        acl_users = options.plone.acl_users
+        if hasattr(acl_users, 'source_groups'):
+            # yeah, its pas
+            groups = acl_users.source_groups.getGroups()
         else:
-            members = group.getMemberIds()
-        print >>fp, 'members = %s' % ','.join(members)
-        print >>fp, 'roles = %s' % ','.join(group.getRoles())
+            # omg, it could be gruf
+            groups = acl_users.Groups.acl_users.getUsers()
+        num_groups = len(groups)
+        for i, group in enumerate(groups):
+            if options.verbose:
+                log('--> (%d/%d) %s' % ((i + 1), num_groups, group.getId()))
+            print >>fp, '[%d]' % i
+            (print >>fp, f'name = {group.getId()}')
+            members = (
+                group.getMemberIds()
+                if hasattr(group, 'getMemberIds')
+                else [
+                    _.getId()
+                    for _ in options.plone.getUsersInGroup(group.getId())
+                ]
+            )
 
-    fp.close()
+            (print >>fp, f"members = {','.join(members)}")
+            (print >>fp, f"roles = {','.join(group.getRoles())}")
+
     log('exported %d groups' % len(groups))
 
 
 def export_members(options):
 
     log('Exporting Members')
-    fp = open(os.path.join(options.export_directory, 'members.ini'), 'w')
+    with open(os.path.join(options.export_directory, 'members.ini'), 'w') as fp:
+        acl_users = options.plone.acl_users
+        users = acl_users.getUserNames()
+        num_users = len(users)
+        pm = options.plone.portal_membership
 
-    acl_users = options.plone.acl_users
-    users = acl_users.getUserNames()
-    num_users = len(users)
-    pm = options.plone.portal_membership
+        try:
+            # Plone 2.5
+            passwords = options.plone.acl_users.source_users._user_passwords
+        except:
+            # Plone 2.1
+            passwords = None
 
-    try:
-        # Plone 2.5
-        passwords = options.plone.acl_users.source_users._user_passwords
-    except:
-        # Plone 2.1
-        passwords = None
-
-    for i, username in enumerate(users):
-        if username == "":
-            # possibly Membrane User Object whick will be exported
-            # later in structure_export
-            continue
-        user = acl_users.getUserById(username)
-        member = pm.getMemberById(username)
-        if member is None:
+        for i, username in enumerate(users):
+            if username == "":
+                # possibly Membrane User Object whick will be exported
+                # later in structure_export
+                continue
+            user = acl_users.getUserById(username)
+            member = pm.getMemberById(username)
+            if member is None:
+                if options.verbose:
+                    log('--> (%d/%d) INVALID %s' % ((i + 1), num_users, username))
+                continue
             if options.verbose:
-                log('--> (%d/%d) INVALID %s' % ((i + 1), num_users, username))
-            continue
-        if options.verbose:
-            log('--> (%d/%d) %s' % ((i + 1), num_users, username))
-        roles = [
-            r for r in member.getRoles()
-            if r not in ('Member', 'Authenticated')
-        ]
-        print >>fp, '[member-%s]' % username
-        print >>fp, 'username = %s' % username
-        if passwords:
-            print >>fp, 'password = %s' % passwords.get(username)
-        else:
-            try:
-                print >>fp, 'password = %s' % user.__
-            except AttributeError:
-                print >>fp, 'password = %s' % 'n/a'
+                log('--> (%d/%d) %s' % ((i + 1), num_users, username))
+            roles = [
+                r for r in member.getRoles()
+                if r not in ('Member', 'Authenticated')
+            ]
+            (print >>fp, f'[member-{username}]')
+            (print >>fp, f'username = {username}')
+            if passwords:
+                (print >>fp, f'password = {passwords.get(username)}')
+            else:
+                try:
+                    (print >>fp, f'password = {user.__}')
+                except AttributeError:
+                    (print >>fp, 'password = n/a')
 
-        print >>fp, 'fullname = %s' % member.getProperty('fullname')
-        print >>fp, 'email = %s' % member.getProperty('email')
-        print >>fp, 'roles = %s' % ','.join(roles)
-        print >>fp
-    fp.close()
+            (print >>fp, f"fullname = {member.getProperty('fullname')}")
+            (print >>fp, f"email = {member.getProperty('email')}")
+            (print >>fp, f"roles = {','.join(roles)}")
+            print >>fp
     log('exported %d users' % len(acl_users.getUserNames()))
 
 
@@ -200,15 +198,19 @@ def export_structure(options):
         rel_path = _getRelativePath(context, options.plone)
 
         if options.verbose:
-            log('--> Analyzing Structure: %s' % rel_path)
+            log(f'--> Analyzing Structure: {rel_path}')
 
         print >>fp, '[%d]' % counter.next()
-        print >>fp, 'id = %s' % context.getId()
-        print >>fp, 'uid = %s' % context_uid
-        print >>fp, 'path = %s' % rel_path
-        print >>fp, 'portal_type = %s' % PT_REPLACEMENT.get(context.portal_type, context.portal_type)  # noqa
-        print >>fp, 'default_page = %s' % _getDefaultPage(context)
-        print >>fp, 'children_uids = %s' % ','.join(children_uids)
+        (print >>fp, f'id = {context.getId()}')
+        (print >>fp, f'uid = {context_uid}')
+        (print >>fp, f'path = {rel_path}')
+        (
+            print >> fp,
+            f'portal_type = {PT_REPLACEMENT.get(context.portal_type, context.portal_type)}',
+        )
+
+        (print >>fp, f'default_page = {_getDefaultPage(context)}')
+        (print >>fp, f"children_uids = {','.join(children_uids)}")
         print >>fp, 'parent_position = %d' % _getPositionInParent(context)
         print >>fp, 'local_roles_block = %d' % _getLocalRolesBlock(context)
         print >>fp
@@ -245,10 +247,7 @@ def _getReviewState(obj):
 
 
 def _getTextFormat(obj):
-    text_format = None
-    if hasattr(obj, 'text_format'):
-        text_format = obj.text_format
-    return text_format
+    return obj.text_format if hasattr(obj, 'text_format') else None
 
 
 def _getContentType(obj):
@@ -258,14 +257,13 @@ def _getContentType(obj):
         ct = obj.getContentType()
     except AttributeError:
         ct = obj.content_type()
-    if ct is not None:
-        if text_format in ('html', 'structured-text'):
-            ct = 'text/html'
+    if ct is not None and text_format in ('html', 'structured-text'):
+        ct = 'text/html'
     return ct
 
 
 def _getParents(obj):
-    result = list()
+    result = []
     current = obj
     while current.portal_type != 'Plone Site':
         result.append(dict(
@@ -280,7 +278,7 @@ def _getParents(obj):
 def _getRelativePath(obj, plone):
     plone_path = '/'.join(plone.getPhysicalPath())
     obj_path = '/'.join(obj.getPhysicalPath())
-    return obj_path.replace(plone_path + '/', '')
+    return obj_path.replace(f'{plone_path}/', '')
 
 
 def _getLayout(obj):
@@ -308,11 +306,7 @@ def _getPositionInParent(obj):
 
     parent = aq_parent(aq_inner(obj))
     ordered = IOrderedContainer(parent, None)
-    if ordered is not None:
-        pos = ordered.getObjectPosition(obj.getId())
-    else:
-        pos = 0
-    return pos
+    return ordered.getObjectPosition(obj.getId()) if ordered is not None else 0
 
 
 def _getUID(obj):
@@ -338,11 +332,10 @@ def export_placeful_workflow(options):
     pwt = options.plone.portal_placeful_workflow
     for id_ in pwt.objectIds():
         zexp = pwt.manage_exportObject(id_, download=1)
-        zexp_name = os.path.join(export_dir, id_ + '.zexp')
-        fp = open(zexp_name, 'wb')
-        fp.write(zexp)
-        fp.close()
-        log('Exported PlacefulWorkflow %s to %s' % (id_, zexp_name))
+        zexp_name = os.path.join(export_dir, f'{id_}.zexp')
+        with open(zexp_name, 'wb') as fp:
+            fp.write(zexp)
+        log(f'Exported PlacefulWorkflow {id_} to {zexp_name}')
 
 
 def export_content(options):
@@ -564,7 +557,7 @@ def export_site(app, options):
 
     plone = app.unrestrictedTraverse(options.path, None)
     if plone is None:
-        raise RuntimeError('Plone site not found (%s)' % options.path)
+        raise RuntimeError(f'Plone site not found ({options.path})')
 
     site_id = plone.getId()
     export_dir = os.path.join(options.output, site_id)
@@ -579,15 +572,15 @@ def export_site(app, options):
     if options.batch_start == 0:
         os.makedirs(export_dir)
 
-    log('Exporting Plone site: %s' % options.path)
-    log('Export directory:  %s' % os.path.abspath(export_dir))
+    log(f'Exporting Plone site: {options.path}')
+    log(f'Export directory:  {os.path.abspath(export_dir)}')
 
     # app = Zope.app()
     app = makerequest(app)
     uf = app.acl_users
     user = uf.getUser(options.username)
     if user is None:
-        raise ValueError('Unknown user: %s' % options.username)
+        raise ValueError(f'Unknown user: {options.username}')
     newSecurityManager(None, user.__of__(uf))
 
     # inject some extra data instead creating our own datastructure

@@ -125,11 +125,11 @@ LAYOUT_REPLACE_MAP = {
 def import_plonegazette_subscribers(options, newsletter, old_uid):
     """ Import PloneGazette subsribers into a new EasyNewsletter instance """
 
-    log('Importing subscribers %s' % newsletter.absolute_url(1))
+    log(f'Importing subscribers {newsletter.absolute_url(1)}')
     subscribers_ini = os.path.join(
-        options.input_directory,
-        '%s_plonegazette_subscribers' % old_uid
+        options.input_directory, f'{old_uid}_plonegazette_subscribers'
     )
+
     CP = ConfigParser()
     CP.read([subscribers_ini])
     get = CP.get
@@ -164,11 +164,11 @@ def import_placeful_workflow(options):
         src = os.path.join(import_dir, zexp)
         dest = os.path.join(dest_dir, zexp)
         shutil.copy(src, dest)
-        log('Copied %s to %s' % (src, dest))
+        log(f'Copied {src} to {dest}')
         if zexp_id in pwt.objectIds():
             pwt.manage_delObjects(zexp_id)
         pwt.manage_importObject(zexp)
-        log('Imported %s' % zexp)
+        log(f'Imported {zexp}')
 
 
 def import_members(options):
@@ -229,13 +229,13 @@ def import_groups(options):
         grp_id = get(section, 'name')
         members = get(section, 'members').split(',')
         if options.verbose:
-            log('-> %s' % grp_id)
+            log(f'-> {grp_id}')
 
         roles = get(section, 'roles').split(',')
         groups_tool.addGroup(grp_id, roles=roles)
         grp = groups_tool.getGroupById(grp_id)
         if grp is None:
-            log('   Error while creating group %s' % grp_id)
+            log(f'   Error while creating group {grp_id}')
             continue
         for member in members:
             grp.addMember(member)
@@ -255,7 +255,7 @@ def folder_create(root, dirname, portal_type):
             _createObjectByType('Folder', current, id=c)
             # current.invokeFactory('Folder', id=c)
         current = getattr(current, c)
-    if not components[-1] in current.objectIds():
+    if components[-1] not in current.objectIds():
         try:
             constrainsMode = current.getConstrainTypesMode()
         except AttributeError:
@@ -321,15 +321,12 @@ def setLayout(obj, layout):
     if not layout:
         return
     layout = LAYOUT_REPLACE_MAP.get((obj.portal_type, layout), layout)
-    layouts = []
     fti = obj.getTypeInfo()
-    if fti:
-        layouts = fti.getAvailableViewMethods(obj)
+    layouts = fti.getAvailableViewMethods(obj) if fti else []
     if layout in layouts:
         obj.setLayout(layout)
     else:
-        log('Can not set layout %s on %s (%s)' % (
-            layout, obj.absolute_url(), fti.getId()))
+        log(f'Can not set layout {layout} on {obj.absolute_url()} ({fti.getId()})')
 
 
 def setWFPolicy(obj, wf_policy):
@@ -360,7 +357,7 @@ def setObjectPosition(obj, position):
         return
     newpos = obj.aq_parent.getObjectPosition(obj.getId())
     if newpos != position:
-        log('Position was not set correctly for %s.' % obj.getId())
+        log(f'Position was not set correctly for {obj.getId()}.')
 
 
 def setContentType(obj, content_type):
@@ -473,10 +470,11 @@ def setReviewState(content, state_id, acquire_permissions=False,
     wf_state = {
         'action': None,
         'actor': None,
-        'comments': "Setting state to %s" % state_id,
+        'comments': f"Setting state to {state_id}",
         'review_state': state_id,
         'time': DateTime(),
     }
+
 
     # Updating wf_state from keyword args
     for k in kw.keys():
@@ -485,7 +483,7 @@ def setReviewState(content, state_id, acquire_permissions=False,
             del kw[k]
     if 'review_state' in kw:
         del kw['review_state']
-    wf_state.update(kw)
+    wf_state |= kw
 
     portal_workflow.setStatusOf(wf_id, content, wf_state)
 
@@ -643,7 +641,7 @@ def uids_to_references(options, context, old_uids):
             if new_obj is not None:
                 new_refs.append(new_obj)
             else:
-                log("Could not find path for old object (%s)" % old_data)
+                log(f"Could not find path for old object ({old_data})")
     return new_refs
 
 
@@ -829,15 +827,15 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
             app.manage_addFolder(id=dest_folder)
         dest = dest.restrictedTraverse(dest_folder)
     if site_id in dest.objectIds():
-        log('%s already exists in %s - REMOVING IT' %
-            (site_id, dest.absolute_url(1)))
+        log(f'{site_id} already exists in {dest.absolute_url(1)} - REMOVING IT')
         if dest.meta_type != 'Folder':
             raise RuntimeError(
-                'Destination must be a Folder instance (found %s)' %
-                dest.meta_type)
+                f'Destination must be a Folder instance (found {dest.meta_type})'
+            )
+
         dest.manage_delObjects([site_id])
         transaction.commit()
-    log('Creating new Plone site with extension profiles %s' % profiles)
+    log(f'Creating new Plone site with extension profiles {profiles}')
     addPloneSite(
         dest,
         site_id,
@@ -846,7 +844,7 @@ def setup_plone(app, dest_folder, site_id, products=(), profiles=()):
         setup_content=False
     )
     plone = dest[site_id]
-    log('Created Plone site at %s' % plone.absolute_url(1))
+    log(f'Created Plone site at {plone.absolute_url(1)}')
     qit = plone.portal_quickinstaller
 
     ids = [p['id'] for p in qit.listInstallableProducts(skipInstalled=1)]
@@ -911,7 +909,7 @@ def import_site(options):
     uf = options.app.acl_users
     user = uf.getUser(options.username)
     if user is None:
-        raise ValueError('Unknown user: %s' % options.username)
+        raise ValueError(f'Unknown user: {options.username}')
     newSecurityManager(None, user.__of__(uf))
 
     url = import_plone(options)
